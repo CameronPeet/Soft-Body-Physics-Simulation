@@ -1,0 +1,111 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Shaders">
+      <UniqueIdentifier>{0e70f890-3075-4891-ab7e-960453208a75}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Utility">
+      <UniqueIdentifier>{aa8ded7b-d486-4676-9f7f-fbe1599e4298}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Graphics">
+      <UniqueIdentifier>{c1228541-0c07-4841-a654-e1c74f843822}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="assets\shaders\3D_Model.frag">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="assets\shaders\3D_Model.vert">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="assets\shaders\heightmap.fs">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="assets\shaders\heightmap.vs">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="assets\shaders\Reflection.frag">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="assets\shaders\Reflection.vert">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="assets\shaders\Shader.frag">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="assets\shaders\Shader.vert">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="assets\shaders\skybox.frag">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="assets\shaders\skybox.vs">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="assets\shaders\geometry_explode.gs" />
+    <None Include="assets\shaders\geometry_explode.vs" />
+    <None Include="assets\shaders\geometry_explode.frag" />
+    <None Include="assets\shaders\geometry_show_normals.gs" />
+    <None Include="assets\shaders\geometry_show_normals.vs" />
+    <None Include="assets\shaders\geometry_show_normals.frag" />
+    <None Include="assets\shaders\geometry_model_star.vert" />
+    <None Include="assets\shaders\geometry_model_star.frag" />
+    <None Include="assets\shaders\geometry_model_star.gs" />
+    <None Include="Physics\Cloth.vert">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="Physics\Cloth.frag" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Utility\ShaderLoader.h">
+      <Filter>Utility</Filter>
+    </ClInclude>
+    <ClInclude Include="Graphics\SkyBox.h">
+      <Filter>Graphics</Filter>
+    </ClInclude>
+    <ClInclude Include="Graphics\Model.h">
+      <Filter>Graphics</Filter>
+    </ClInclude>
+    <ClInclude Include="Graphics\Camera.h">
+      <Filter>Graphics</Filter>
+    </ClInclude>
+    <ClInclude Include="Graphics\Light.h">
+      <Filter>Graphics</Filter>
+    </ClInclude>
+    <ClInclude Include="Graphics\Utils.h">
+      <Filter>Graphics</Filter>
+    </ClInclude>
+    <ClInclude Include="Graphics\ObjModel.h" />
+    <ClInclude Include="Graphics\Mesh.h" />
+    <ClInclude Include="Graphics\Terrain.h" />
+    <ClInclude Include="Graphics\GeometryModel.h" />
+    <ClInclude Include="Physics\PhysicsWorld.h" />
+    <ClInclude Include="Physics\CDebugDraw.h" />
+    <ClInclude Include="Cloth.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="Utility\ShaderLoader.cpp">
+      <Filter>Utility</Filter>
+    </ClCompile>
+    <ClCompile Include="main.cpp" />
+    <ClCompile Include="Graphics\Camera.cpp">
+      <Filter>Graphics</Filter>
+    </ClCompile>
+    <ClCompile Include="Graphics\Model.cpp">
+      <Filter>Graphics</Filter>
+    </ClCompile>
+    <ClCompile Include="Graphics\Utils.cpp">
+      <Filter>Graphics</Filter>
+    </ClCompile>
+    <ClCompile Include="Graphics\ObjModel.cpp" />
+    <ClCompile Include="Graphics\Terrain.cpp" />
+    <ClCompile Include="Graphics\GeometryModel.cpp" />
+    <ClCompile Include="Physics\BulletMain.cpp" />
+    <ClCompile Include="Physics\CDebugDraw.cpp" />
+    <ClCompile Include="Physics\PhysicsWorld.cpp" />
+    <ClCompile Include="Cloth.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="BU.txt" />
+  </ItemGroup>
+</Project>
