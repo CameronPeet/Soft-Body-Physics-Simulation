@@ -39,28 +39,11 @@
 #include "Cloth.h"
 
 
-typedef class Helper;
-
-
 float mouseX, mouseY;
 bool mouseDown = false;
 glm::vec3 rayDirection;
 const float MAX_RAY_LENGTH = 100.0f;
 void pickingPreTickCallback(btDynamicsWorld *world, btScalar timeStep);
-
-Model model;
-
-std::vector<Vertex2> clothPoints;
-std::vector<Vertex2> clothLines;
-std::vector<Vertex2> clothFaces;
-std::vector<GLuint> pointIndices;
-std::vector<GLuint> lineIndices;
-std::vector<GLuint> faceIndices;
-
-
-GLint viewport[4];
-GLdouble MV[16];
-GLdouble P[16];
 
 glm::vec3 Up = glm::vec3(0, 1, 0), Right, viewDir;
 
@@ -82,22 +65,18 @@ bool g_WindowRunning = false;
 std::clock_t g_PreviousTicks;
 std::clock_t g_CurrentTicks;
 
-
 //Uniform buffer objects for uniform mat4's across all shaders (Camera Projectiona nd View matrix)
 GLuint g_uboMatrices;
-
 //Global Shader Programs
 ShaderLoader shaderLoader;
 GLuint standardShader;
 GLuint skyboxShader;
 GLuint objModelShader;
 GLuint terrainShader;
-
 //Global geometry shaders
 GLuint geometry_explode_shader;
 GLuint geometry_show_normals;
 GLuint geometry_model_star;
-
 GLuint* AllShaders[] =
 {
 	&standardShader,
@@ -107,7 +86,6 @@ GLuint* AllShaders[] =
 	&geometry_explode_shader,
 	&geometry_show_normals,
 	&geometry_model_star
-
 };
 
 
@@ -115,11 +93,6 @@ GLuint* AllShaders[] =
 Camera g_Camera;
 SkyBox g_SkyBox;
 Light g_GlobalLight;
-ObjModel g_Castle3D;
-ObjModel g_NanoSuit;
-Terrain g_Terrain3D;
-GeometryModel g_ModelGS;
-Model g_Sphere;
 
 
 glm::vec3 g_Movement;
@@ -130,11 +103,11 @@ float yaw = 90.0f, pitch = 0.0f;
 bool firstMouse = true;
 
 
-btBroadphaseInterface* broadphase;
-btDefaultCollisionConfiguration* collisionConfiguration;
-btCollisionDispatcher* dispatcher;
-btSequentialImpulseConstraintSolver* solver;
-btSoftRigidDynamicsWorld* dynamicsWorld;
+btBroadphaseInterface*					broadphase;
+btDefaultCollisionConfiguration*		collisionConfiguration;
+btCollisionDispatcher*					dispatcher;
+btSequentialImpulseConstraintSolver*	solver;
+btSoftRigidDynamicsWorld*				dynamicsWorld;
 
 btSoftBody* cloth;
 PhysicsBody g_Cloth;
@@ -171,11 +144,8 @@ btRigidBody* createRigidBody(float mass, const btTransform& startTransform, btCo
 }
 float * tex_coords;
 
-//What are your start up options
-int main(int argc, char ** argv)
+void CreatePhysicsWorld()
 {
-
-
 	//STEP 1:
 	//Defines the broadphase algorithm
 	broadphase = new btDbvtBroadphase();
@@ -193,20 +163,21 @@ int main(int argc, char ** argv)
 	//Does well if not pushed, bottlenecks at high performance simulations. Parralel versions available for threading models
 	solver = new btSequentialImpulseConstraintSolver();
 
+
 	//Instantiate the dynamics world
 	dynamicsWorld = new btSoftRigidDynamicsWorld(dispatcher, broadphase, solver, collisionConfiguration);
 
 	//Set the Gravity!
 	dynamicsWorld->setGravity(btVector3(0, -9.81, 0));
 
-	btSoftBodyWorldInfo softBodyWorldInfo;
 	softBodyWorldInfo.m_broadphase = broadphase;
 	softBodyWorldInfo.m_dispatcher = dispatcher;
 	softBodyWorldInfo.m_gravity = dynamicsWorld->getGravity();
 	softBodyWorldInfo.m_sparsesdf.Initialize();
-	//Interem Code
-	//Creating shapes
+}
 
+void CreatePhysicsCloth()
+{
 	const btScalar s = 4;
 	const int numX = 25;
 	const int numY = 25;
@@ -231,19 +202,23 @@ int main(int argc, char ** argv)
 	cloth->m_cfg.kDP = 0.005f;
 
 	dynamicsWorld->addSoftBody(cloth);
+}
+
+void CreatePhysicsBox()
+{
 	btBoxShape* groundShape = new btBoxShape(btVector3(btScalar(1.1), btScalar(1.1), btScalar(1.1)));
 	btTransform groundTransform;
 	groundTransform.setIdentity();
 	glm::mat4 transform;
 	transform = glm::translate(transform, glm::vec3(0, 1, 0));
 	groundTransform.setFromOpenGLMatrix(glm::value_ptr(transform));
-	
+
 	box = createRigidBody(btScalar(0.), groundTransform, groundShape);
-	
+}
 
-
-	
-
+//What are your start up options
+int main(int argc, char ** argv)
+{
 	glutInit(&argc, argv);
 	glutInitDisplayMode(GLUT_DEPTH | GLUT_DOUBLE | GLUT_RGBA | GLUT_MULTISAMPLE);
 	glutInitWindowPosition(GLUT_WINDOW_WIDTH / 2, GLUT_WINDOW_HEIGHT / 2);
@@ -263,7 +238,9 @@ int main(int argc, char ** argv)
 	glewExperimental = GL_TRUE;
 
 	glewInit();
-	Init();
+
+	if (!Init())
+		return EXIT_FAILURE;
 
 	glutDisplayFunc(Render);
 	glutKeyboardFunc(KeyDown);
@@ -274,8 +251,6 @@ int main(int argc, char ** argv)
 	glutMouseFunc(MouseButton);
 	glutMotionFunc(MouseMoveWhileClicked);
 
-	std::cout << "hi main" << std::endl;
-
 	glutMainLoop();
 
 	return EXIT_SUCCESS;
@@ -283,6 +258,20 @@ int main(int argc, char ** argv)
 
 bool Init()
 {
+	CreatePhysicsWorld();
+
+	if (dynamicsWorld == nullptr)
+	{
+		std::cout << "Unknown error in creating Physics dynamicWorld... exiting" << std::endl;
+		int wait;
+		std::cin >> wait;
+		return false;
+	}
+
+	CreatePhysicsCloth();
+	CreatePhysicsBox();
+
+
 	//Load and create shader files
 	standardShader = shaderLoader.CreateProgram(
 		"Assets/shaders/shader.vert",
@@ -333,14 +322,6 @@ bool Init()
 		"Assets/skybox/front.jpg");
 	g_SkyBox.Initialise();
 
-	clothPoints.resize(cloth->m_nodes.size());
-	clothLines.resize(cloth->m_links.size());
-	clothFaces.resize(cloth->m_faces.size());
-	pointIndices.resize(cloth->m_nodes.size());
-	lineIndices.resize(cloth->m_links.size());
-	faceIndices.resize(cloth->m_faces.size());
-
-	
 	g_Cloth = PhysicsBody();
 	g_Cloth.DynamicDraw = true;
 	g_Cloth.texturePath = "assets/textures/Cloth.jpg";
@@ -353,11 +334,6 @@ bool Init()
 	g_Box.m_Position = glm::vec3(0, 1, 0);
 	g_Box.ObjectColor = glm::vec3(1.0f, 1.0f, 1.0f);
 
-	model = Model(SPHERE, "assets/textures/ball.jpg");
-	model.Initialise();
-
-	//AddPhysicsObjects();
-
 	DefineUniformBufferObjects();
 	BindUBO();
 	return true;
@@ -365,108 +341,105 @@ bool Init()
 
 void UpdateSoftBodyVertices()
 {
+	/* Each soft body contain an array of vertices (nodes/particles_mass)   */
+	btSoftBody::tNodeArray&   _nodes(cloth->m_nodes);
 
+	/* And edges (links/distances constraints)                        */
+	btSoftBody::tLinkArray&   _links(cloth->m_links);
+
+	/* And finally, faces (triangles)                                 */
+	btSoftBody::tFaceArray&   _faces(cloth->m_faces);
+
+
+	g_Cloth.vertices.clear();
+	g_Cloth.indices.clear();
+
+	/* Then, you can draw vertices...    */
+	/* Node::m_x => position             */
+	/* Node::m_n => normal				 */
+	int ndoesize = _nodes.size();
+	for (int j = 0; j< _nodes.size(); ++j)
 	{
-		/* Each soft body contain an array of vertices (nodes/particles_mass)   */
-		btSoftBody::tNodeArray&   _nodes(cloth->m_nodes);
+		Vertex2 v = Vertex2();
+		btVector3 p = _nodes[j].m_x;
+		btVector3 n = _nodes[j].m_n;
 
-		/* And edges (links/distances constraints)                        */
-		btSoftBody::tLinkArray&   _links(cloth->m_links);
+		v.pos = glm::vec3(p[0], p[1], p[2]);
+		v.n = glm::vec3(n[0], n[1], n[2]);
+		v.uv = glm::vec2(0, 0);
 
-		/* And finally, faces (triangles)                                 */
-		btSoftBody::tFaceArray&   _faces(cloth->m_faces);
+		g_Cloth.vertices.push_back(v);
+	}
 
+	/* Or edges (for ropes)               */
+	/* Link::m_n[2] => pointers to nodes   */
 
-		g_Cloth.vertices.clear();
-		g_Cloth.indices.clear();
+	for (int j = 0; j<_links.size(); ++j)
+	{
+		btSoftBody::Node*   node_0 = _links[j].m_n[0];
+		btSoftBody::Node*   node_1 = _links[j].m_n[1];
 
-		/* Then, you can draw vertices...    */
-		/* Node::m_x => position             */
-		/* Node::m_n => normal				 */
-		int ndoesize = _nodes.size();
-		for (int j = 0; j< _nodes.size(); ++j)
-		{
-			Vertex2 v = Vertex2();
-			btVector3 p = _nodes[j].m_x;
-			btVector3 n = _nodes[j].m_n;
+		btVector3 p1 = node_0->m_x;
+		btVector3 n1 = node_0->m_n;
+		btVector3 p2 = node_1->m_x;
+		btVector3 n2 = node_1->m_n;
 
-			v.pos = glm::vec3(p[0], p[1], p[2]);
-			v.n = glm::vec3(n[0], n[1], n[2]);
-			v.uv = glm::vec2(0, 0);
+		Vertex2 v = Vertex2();
+		Vertex2 v2 = Vertex2();
 
-			g_Cloth.vertices.push_back(v);
-		}
+		v2.pos = glm::vec3(p2[0], p2[1], p2[2]);
+		v.pos = glm::vec3(p1[0], p1[1], p1[2]);
+		v2.n = glm::vec3(n2[0], n2[1], n2[2]);
+		v.n = glm::vec3(n1[0], n1[1], n1[2]);
+		v2.uv = glm::vec2(0, 0);
+		v.uv = glm::vec2(0, 0);
 
-		/* Or edges (for ropes)               */
-		/* Link::m_n[2] => pointers to nodes   */
+		g_Cloth.vertices.push_back(v);
+		g_Cloth.vertices.push_back(v2);
+	}
 
-		for (int j = 0; j<_links.size(); ++j)
-		{
-			btSoftBody::Node*   node_0 = _links[j].m_n[0];
-			btSoftBody::Node*   node_1 = _links[j].m_n[1];
+	/* And faces							*/
+	/* Face::m_n[3] -> pointers to nodes	*/
+	int index = 0;
+	int tex = 0;
+	for (int j = 0; j< _faces.size(); ++j)
+	{
+		btSoftBody::Node*   node_0 = _faces[j].m_n[0];
+		btSoftBody::Node*   node_1 = _faces[j].m_n[1];
+		btSoftBody::Node*   node_2 = _faces[j].m_n[2];
 
-			btVector3 p1 = node_0->m_x;
-			btVector3 n1 = node_0->m_n;
-			btVector3 p2 = node_1->m_x;
-			btVector3 n2 = node_1->m_n;
+		btVector3 p1 = node_0->m_x;
+		btVector3 n1 = node_0->m_n;
+		btVector3 p2 = node_1->m_x;
+		btVector3 n2 = node_1->m_n;
+		btVector3 p3 = node_2->m_x;
+		btVector3 n3 = node_2->m_n;
 
-			Vertex2 v = Vertex2();
-			Vertex2 v2 = Vertex2();
+		Vertex2 v = Vertex2();
+		Vertex2 v1 = Vertex2();
+		Vertex2 v2 = Vertex2();
 
-			v2.pos = glm::vec3(p2[0], p2[1], p2[2]);
-			v.pos = glm::vec3(p1[0], p1[1], p1[2]);
-			v2.n = glm::vec3(n2[0], n2[1], n2[2]);
-			v.n = glm::vec3(n1[0], n1[1], n1[2]);
-			v2.uv = glm::vec2(0, 0);
-			v.uv = glm::vec2(0, 0);
+		v2.pos = glm::vec3(p3[0], p3[1], p3[2]);
+		v2.n = glm::vec3(n3[0], n3[1], n3[2]);
+		v2.uv = glm::vec2(tex_coords[tex + 0], tex_coords[tex + 1]);
 
-			g_Cloth.vertices.push_back(v);
-			g_Cloth.vertices.push_back(v2);
-		}
+		v1.pos = glm::vec3(p2[0], p2[1], p2[2]);
+		v1.n = glm::vec3(n2[0], n2[1], n2[2]);
+		v1.uv = glm::vec2(tex_coords[tex + 2], tex_coords[tex + 3]);
 
-		/* And faces							*/
-		/* Face::m_n[3] -> pointers to nodes	*/
-		int index = 0;
-		int tex = 0;
-		for (int j = 0; j< _faces.size(); ++j)
-		{
-			btSoftBody::Node*   node_0 = _faces[j].m_n[0];
-			btSoftBody::Node*   node_1 = _faces[j].m_n[1];
-			btSoftBody::Node*   node_2 = _faces[j].m_n[2];
+		v.pos = glm::vec3(p1[0], p1[1], p1[2]);
+		v.n = glm::vec3(n1[0], n1[1], n1[2]);
+		v.uv = glm::vec2(tex_coords[tex + 4], tex_coords[tex + 5]);
 
-			btVector3 p1 = node_0->m_x;
-			btVector3 n1 = node_0->m_n;
-			btVector3 p2 = node_1->m_x;
-			btVector3 n2 = node_1->m_n;
-			btVector3 p3 = node_2->m_x;
-			btVector3 n3 = node_2->m_n;
+		g_Cloth.vertices.push_back(v);
+		g_Cloth.vertices.push_back(v1);
+		g_Cloth.vertices.push_back(v2);
 
-			Vertex2 v = Vertex2();
-			Vertex2 v1 = Vertex2();
-			Vertex2 v2 = Vertex2();
+		g_Cloth.indices.push_back(int(node_0 - &_nodes[0]));
+		g_Cloth.indices.push_back(int(node_1 - &_nodes[0]));
+		g_Cloth.indices.push_back(int(node_2 - &_nodes[0]));
 
-			v2.pos = glm::vec3(p3[0], p3[1], p3[2]);
-			v2.n = glm::vec3(n3[0], n3[1], n3[2]);
-			v2.uv = glm::vec2(tex_coords[tex + 0], tex_coords[tex + 1]);
-
-			v1.pos = glm::vec3(p2[0], p2[1], p2[2]);
-			v1.n = glm::vec3(n2[0], n2[1], n2[2]);
-			v1.uv = glm::vec2(tex_coords[tex + 2], tex_coords[tex + 3]);
-
-			v.pos = glm::vec3(p1[0], p1[1], p1[2]);
-			v.n = glm::vec3(n1[0], n1[1], n1[2]);
-			v.uv = glm::vec2(tex_coords[tex + 4], tex_coords[tex + 5]);
-
-			g_Cloth.vertices.push_back(v);
-			g_Cloth.vertices.push_back(v1);
-			g_Cloth.vertices.push_back(v2);
-
-			g_Cloth.indices.push_back(int(node_0 - &_nodes[0]));
-			g_Cloth.indices.push_back(int(node_1 - &_nodes[0]));
-			g_Cloth.indices.push_back(int(node_2 - &_nodes[0]));
-
-			tex += 6;
-		}
+		tex += 6;
 	}
 }
 
@@ -720,7 +693,7 @@ void MouseButton(int button, int state, int x, int y)
 		{
 			if ((!m_drag) && m_cutting && (m_results.fraction<1.f))
 			{
-				ImplicitSphere	isphere(m_impact, 1);
+				ImplicitSphere	isphere(m_impact, 0.2f);
 				printf("Mass before: %f\r\n", m_results.body->getTotalMass());
 				m_results.body->refine(&isphere, 0.0001, true);
 				printf("Mass after: %f\r\n", m_results.body->getTotalMass());
@@ -837,44 +810,20 @@ void BindUBO()
 ///for mouse picking
 void pickingPreTickCallback(btDynamicsWorld *world, btScalar timeStep)
 {
-	glm::vec2 NSP = glm::vec2(mouseX, mouseY);
-
-	glm::vec4 clip = glm::vec4(NSP, -1.0f, 1.0f);
-
-	glm::mat4 invProjMat = glm::inverse(g_Camera.GetProjectionMatrix());
-	glm::vec4 eye = invProjMat * clip;
-	eye = glm::vec4(eye.x, eye.y, -1.0f, 0.0f);
-
-	glm::mat4 invViewMat = glm::inverse(g_Camera.GetViewMatrix());
-	glm::vec4 rayWorld = invViewMat * eye;
-	rayDirection = glm::normalize(glm::vec3(rayWorld));
-	rayDirection *= MAX_RAY_LENGTH;
-	btVector3 ray;
-	ray[0] = rayDirection.x;
-	ray[1] = rayDirection.y;
-	ray[2] = rayDirection.z;
-
-	mouseDown = true;
-	glm::vec3 cpos = g_Camera.GetPosition();
-	btVector3 rayFrom;
-	rayFrom[0] = cpos.x;
-	rayFrom[1] = cpos.y;
-	rayFrom[2] = cpos.z;
-
-
 	if (m_drag)
 	{
-		const int				x = m_lastmousepos[0];
-		const int				y = m_lastmousepos[1];
-		float rf[3];
+		const int	x = m_lastmousepos[0];
+		const int	y = m_lastmousepos[1];
+		float		rf[3];
 		
 		float target[3];
+		const btVector3 rayFrom = btMakeVector3(g_Camera.GetPosition());
+		const btVector3	rayTo = btMakeVector3(g_Camera.GetRayTo(x, y, 100.0f));
+		const btVector3	rayDir = (rayTo - rayFrom).normalized();
+		const btVector3	N = (m_node->m_x - rayFrom).normalized();
+		const btScalar	O = btDot(m_impact, N);
+		const btScalar	den = btDot(N, rayDir);
 
-		const btVector3			rayTo = btMakeVector3(g_Camera.GetRayTo(x, y, 100.0f));
-		const btVector3			rayDir = (rayTo - rayFrom).normalized();
-		const btVector3			N = (m_node->m_x - rayFrom).normalized();
-		const btScalar			O = btDot(m_impact, N);
-		const btScalar			den = btDot(N, rayDir);
 		if ((den*den)>0)
 		{
 			const btScalar			num = O - btDot(N, rayFrom);
@@ -913,33 +862,33 @@ btScalar m_oldPickingDist;
 
 bool pickBody(const btVector3& rayFromWorld, const btVector3& rayToWorld)
 {
-	//if (dynamicsWorld == 0)
-	//	return false;
+	if (dynamicsWorld == 0)
+		return false;
 
-	//btCollisionWorld::ClosestRayResultCallback rayCallback(rayFromWorld, rayToWorld);
-	//dynamicsWorld->rayTest(rayFromWorld, rayToWorld, rayCallback);
-	//if (rayCallback.hasHit()) {
-	//	btVector3 pickPos = rayCallback.m_hitPointWorld;
-	//	btSoftBody* body = (btSoftBody*)btSoftBody::upcast(rayCallback.m_collisionObject);
-	//	if (body) {
-	//		if (!(body->isStaticObject() || body->isKinematicObject())) {
-	//			m_pickedBody = body;
-	//			m_savedState = m_pickedBody->getActivationState();
-	//			m_pickedBody->setActivationState(DISABLE_DEACTIVATION);
+	btCollisionWorld::ClosestRayResultCallback rayCallback(rayFromWorld, rayToWorld);
+	dynamicsWorld->rayTest(rayFromWorld, rayToWorld, rayCallback);
+	if (rayCallback.hasHit()) {
+		btVector3 pickPos = rayCallback.m_hitPointWorld;
+		btRigidBody* body = (btRigidBody*)btRigidBody::upcast(rayCallback.m_collisionObject);
+		if (body) {
+			if (!(body->isStaticObject() || body->isKinematicObject())) {
+				//m_pickedBody = body; //is a soft body for the cloth atm.
+				m_savedState = m_pickedBody->getActivationState();
+				m_pickedBody->setActivationState(DISABLE_DEACTIVATION);
 
-	//			btVector3 localPivot = body->getCenterOfMassTransform().inverse() * pickPos;
-	//			btPoint2PointConstraint* p2p = new btPoint2PointConstraint(*body, localPivot);
-	//			dynamicsWorld->addConstraint(p2p, true);
-	//			m_pickedConstraint = p2p;
-	//			btScalar mousePickClamping = 30.f;
-	//			p2p->m_setting.m_impulseClamp = mousePickClamping;
-	//			p2p->m_setting.m_tau = 0.001f;
-	//		}
-	//	}
-	//	m_oldPickingPos = rayToWorld;
-	//	m_hitPos = pickPos;
-	//	m_oldPickingDist = (pickPos - rayFromWorld).length();
-	//}
+				btVector3 localPivot = body->getCenterOfMassTransform().inverse() * pickPos;
+				btPoint2PointConstraint* p2p = new btPoint2PointConstraint(*body, localPivot);
+				dynamicsWorld->addConstraint(p2p, true);
+				m_pickedConstraint = p2p;
+				btScalar mousePickClamping = 30.f;
+				p2p->m_setting.m_impulseClamp = mousePickClamping;
+				p2p->m_setting.m_tau = 0.001f;
+			}
+		}
+		m_oldPickingPos = rayToWorld;
+		m_hitPos = pickPos;
+		m_oldPickingDist = (pickPos - rayFromWorld).length();
+	}
 	return true;
 }
 
