@@ -59,6 +59,9 @@ public:
 	glm::vec3 m_Scale;
 	glm::vec3 m_RotationPoint;
 
+	bool usingPhysics;
+	glm::mat4 modelMatrix;
+
 
 
 	//Stored by the constructor for use in the initialiser.

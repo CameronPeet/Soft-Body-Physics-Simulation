@@ -60,6 +60,7 @@ Model::Model(ModelType Shape, char* Filename, bool usingBulletPhysics)
 
 	m_Scale = glm::vec3(1, 1, 1);
 	texturePath = Filename;
+	usingPhysics = usingBulletPhysics;
 
 }
 
@@ -139,22 +140,34 @@ void Model::Render(GLuint program, Camera& camera, Light* lightSource)
 	GLint cameraPosLoc = glGetUniformLocation(program, "cameraPos");
 	GLint normalMatrixLoc = glGetUniformLocation(program, "normalMatrix");
 
+
 	glm::mat4 model;
+	if (usingPhysics)
+	{
+		model = modelMatrix;
+	}
 
-	//Translate the model according to its position and apply the rotation
-	model = glm::translate(model, m_Position) * glm::mat4(m_Rotation);
+	else
+	{
+		//Translate the model according to its position and apply the rotation
+		model = glm::translate(model, m_Position) * glm::mat4(m_Rotation);
 
-	//Rotation points
-	if (m_RotationPoint != glm::vec3(0, 0, 0))
-		model = glm::translate(model, m_Position - m_RotationPoint);
+		//Rotation points
+		if (m_RotationPoint != glm::vec3(0, 0, 0))
+			model = glm::translate(model, m_Position - m_RotationPoint);
 
-	//Scale the model according to private member m_Scale
-	model = glm::scale(model, m_Scale);
+		//Scale the model according to private member m_Scale
+		model = glm::scale(model, m_Scale);
+	}
+
 
 	glm::mat4 normalMatrix;
 	normalMatrix = glm::transpose(glm::inverse(model * camera.GetViewMatrix()));
 	//Send the values to the uniform variables in the program supplied in the function call
 	glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
+
+
+
 	glm::mat4 vp = camera.GetProjectionMatrix() * camera.GetViewMatrix();
 	GLint vpLoc = glGetUniformLocation(program, "vp");
 	glUniformMatrix4fv(vpLoc, 1, GL_FALSE, glm::value_ptr(vp));

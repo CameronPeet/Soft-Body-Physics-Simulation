@@ -33,9 +33,13 @@
 #include "Graphics\ObjModel.h"
 #include "Graphics\Terrain.h"
 #include "Graphics\GeometryModel.h"
+
 #include "Physics\PhysicsWorld.h"
+
 #include "Cloth.h"
 
+
+typedef class Helper;
 
 
 float mouseX, mouseY;
@@ -43,7 +47,7 @@ bool mouseDown = false;
 glm::vec3 rayDirection;
 const float MAX_RAY_LENGTH = 100.0f;
 void pickingPreTickCallback(btDynamicsWorld *world, btScalar timeStep);
-Cloth g_Cloth;
+
 Model model;
 
 std::vector<Vertex2> clothPoints;
@@ -70,7 +74,6 @@ void Reshape(int width, int height);
 void PassiveMotion(int x, int y);
 void MouseButton(int button, int state, int x, int y);
 void MouseMoveWhileClicked(int x, int y);
-void AddPhysicsObjects();
 void DefineUniformBufferObjects();
 void BindUBO();
 bool g_WindowRunning = false;
@@ -132,7 +135,14 @@ btDefaultCollisionConfiguration* collisionConfiguration;
 btCollisionDispatcher* dispatcher;
 btSequentialImpulseConstraintSolver* solver;
 btSoftRigidDynamicsWorld* dynamicsWorld;
+
 btSoftBody* cloth;
+PhysicsBody g_Cloth;
+
+btRigidBody* box;
+Model g_Box;
+
+
 btSoftBodyWorldInfo softBodyWorldInfo;
 
 
@@ -142,21 +152,23 @@ int state = 1;
 float dist = -23;
 const int GRID_SIZE = 10;
 
-void DrawGrid()
+btRigidBody* createRigidBody(float mass, const btTransform& startTransform, btCollisionShape* shape, const btVector4& color = btVector4(1, 0, 0, 1))
 {
-	glBegin(GL_LINES);
-	glColor3f(0.5f, 0.5f, 0.5f);
-	for (int i = -GRID_SIZE; i <= GRID_SIZE; i++)
-	{
-		glVertex3f((float)i, 0, (float)-GRID_SIZE);
-		glVertex3f((float)i, 0, (float)GRID_SIZE);
+	btAssert((!shape || shape->getShapeType() != INVALID_SHAPE_PROXYTYPE));
+	bool isDynamic = (mass != 0.f);
 
-		glVertex3f((float)-GRID_SIZE, 0, (float)i);
-		glVertex3f((float)GRID_SIZE, 0, (float)i);
-	}
-	glEnd();
+	btVector3 localInertia(0, 0, 0);
+	if (isDynamic)
+		shape->calculateLocalInertia(mass, localInertia);
+
+	btDefaultMotionState* myMotionState = new btDefaultMotionState(startTransform);
+	btRigidBody::btRigidBodyConstructionInfo cInfo(mass, myMotionState, shape, localInertia);
+	btRigidBody* body = new btRigidBody(cInfo);
+
+	body->setUserIndex(-1);
+	dynamicsWorld->addRigidBody(body);
+	return body;
 }
-
 float * tex_coords;
 
 //What are your start up options
@@ -217,7 +229,20 @@ int main(int argc, char ** argv)
 	//	cloth->m_cfg.diterations = 10;
 	cloth->m_cfg.piterations = 5;
 	cloth->m_cfg.kDP = 0.005f;
+
 	dynamicsWorld->addSoftBody(cloth);
+	btBoxShape* groundShape = new btBoxShape(btVector3(btScalar(1.1), btScalar(1.1), btScalar(1.1)));
+	btTransform groundTransform;
+	groundTransform.setIdentity();
+	glm::mat4 transform;
+	transform = glm::translate(transform, glm::vec3(0, 1, 0));
+	groundTransform.setFromOpenGLMatrix(glm::value_ptr(transform));
+	
+	box = createRigidBody(btScalar(0.), groundTransform, groundShape);
+	
+
+
+	
 
 	glutInit(&argc, argv);
 	glutInitDisplayMode(GLUT_DEPTH | GLUT_DOUBLE | GLUT_RGBA | GLUT_MULTISAMPLE);
@@ -316,11 +341,17 @@ bool Init()
 	faceIndices.resize(cloth->m_faces.size());
 
 	
-	g_Cloth = Cloth();
+	g_Cloth = PhysicsBody();
+	g_Cloth.DynamicDraw = true;
 	g_Cloth.texturePath = "assets/textures/Cloth.jpg";
 	g_Cloth.Initialise();
 	g_Cloth.m_Position = glm::vec3(0, 0, 0);
 	g_Cloth.ObjectColor = glm::vec3(1.0f, 1.0f, 1.0f);
+
+	g_Box = Model(CUBE, "assets/textures/ball.jpg", true);
+	g_Box.Initialise();
+	g_Box.m_Position = glm::vec3(0, 1, 0);
+	g_Box.ObjectColor = glm::vec3(1.0f, 1.0f, 1.0f);
 
 	model = Model(SPHERE, "assets/textures/ball.jpg");
 	model.Initialise();
@@ -331,36 +362,6 @@ bool Init()
 	BindUBO();
 	return true;
 }
-
-void RenderOld()
-{
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	glLoadIdentity();
-	glTranslatef(0, 0, dist);
-	glRotatef(rX, 1, 0, 0);
-	glRotatef(rY, 0, 1, 0);
-
-	glGetDoublev(GL_MODELVIEW_MATRIX, MV);
-	viewDir.x = (float)-MV[2];
-	viewDir.y = (float)-MV[6];
-	viewDir.z = (float)-MV[10];
-	Right = glm::cross(viewDir, Up);
-
-	//draw polygons
-	glColor3f(1, 1, 1);
-	glBegin(GL_TRIANGLES);
-
-	//for (int i = 0; i< indices.size(); i += 3) {
-	//	glm::vec3 p1 = vertices[indices[i]].pos;
-	//	glm::vec3 p2 = vertices[indices[i + 1]].pos;
-	//	glm::vec3 p3 = vertices[indices[i + 2]].pos;
-	//	glVertex3f(p1.x, p1.y, p1.z);
-	//	glVertex3f(p2.x, p2.y, p2.z);
-	//	glVertex3f(p3.x, p3.y, p3.z);
-	//}
-	glEnd();
-}
-
 
 void UpdateSoftBodyVertices()
 {
@@ -379,11 +380,9 @@ void UpdateSoftBodyVertices()
 		g_Cloth.vertices.clear();
 		g_Cloth.indices.clear();
 
-		/* Then, you can draw vertices...      */
-		/* Node::m_x => position            */
-		/* Node::m_n => normal (if meaningful)   */
-		//clothPoints.clear();
-		//pointIndices.clear();
+		/* Then, you can draw vertices...    */
+		/* Node::m_x => position             */
+		/* Node::m_n => normal				 */
 		int ndoesize = _nodes.size();
 		for (int j = 0; j< _nodes.size(); ++j)
 		{
@@ -396,16 +395,11 @@ void UpdateSoftBodyVertices()
 			v.uv = glm::vec2(0, 0);
 
 			g_Cloth.vertices.push_back(v);
-			//clothPoints.push_back(v);
-			//pointIndices.push_back(j);
 		}
 
 		/* Or edges (for ropes)               */
 		/* Link::m_n[2] => pointers to nodes   */
 
-		////USE OLD RENDER
-		//clothLines.clear();
-		//lineIndices.clear();
 		for (int j = 0; j<_links.size(); ++j)
 		{
 			btSoftBody::Node*   node_0 = _links[j].m_n[0];
@@ -428,31 +422,17 @@ void UpdateSoftBodyVertices()
 
 			g_Cloth.vertices.push_back(v);
 			g_Cloth.vertices.push_back(v2);
-			//clothLines.push_back(v);
-			//clothLines.push_back(v2);
-
-
-			//mygfx->DrawLine(node_0->m_x, node_1->m_x);
-
-			/* Or if you need indices...      */
-			//const int indicess[] = { int(node_0 - &_nodes[0]), int(node_1 - &_nodes[0]) };
-			//lineIndices.push_back(int(node_0 - &_nodes[0]));
-			//lineIndices.push_back(int(node_1 - &_nodes[0]));
 		}
 
-		/* And even faces                  */
-		/* Face::m_n[3] -> pointers to nodes   */
+		/* And faces							*/
+		/* Face::m_n[3] -> pointers to nodes	*/
 		int index = 0;
 		int tex = 0;
-		//clothFaces.clear();
-		//faceIndices.clear();
 		for (int j = 0; j< _faces.size(); ++j)
 		{
 			btSoftBody::Node*   node_0 = _faces[j].m_n[0];
 			btSoftBody::Node*   node_1 = _faces[j].m_n[1];
 			btSoftBody::Node*   node_2 = _faces[j].m_n[2];
-
-			//mygfx->DrawTriangle(node_0->m_x, node_1->m_x, node_2->m_x);
 
 			btVector3 p1 = node_0->m_x;
 			btVector3 n1 = node_0->m_n;
@@ -486,27 +466,10 @@ void UpdateSoftBodyVertices()
 			g_Cloth.indices.push_back(int(node_2 - &_nodes[0]));
 
 			tex += 6;
-
-			//clothFaces.push_back(v);
-			//clothFaces.push_back(v1);
-			//clothFaces.push_back(v2);
-
-
-			//mygfx->DrawLine(node_0->m_x, node_1->m_x);
-			/* Or if you need indices...      */
-			//const int indicess[] =
-			//{ int(node_0 - &_nodes[0]),
-			//	int(node_1 - &_nodes[0]),
-			//	int(node_2 - &_nodes[0]) };
-			/* Or if you need indices...      */
-
-
-			/*faceIndices.push_back(int(node_0 - &_nodes[0]));
-			faceIndices.push_back(int(node_1 - &_nodes[0]));
-			faceIndices.push_back(int(node_2 - &_nodes[0]));*/
 		}
 	}
 }
+
 
 void Render()
 {
@@ -517,16 +480,16 @@ void Render()
 	BindUBO();
 	g_SkyBox.Render(skyboxShader, g_Camera);
 
-	//std::vector<Vertex2> vertices(clothPoints);
-
-	//for (int i = 0; i < clothLines.size(); i++)
-	//	vertices.push_back(clothLines[i]);
-
-	//for (int i = 0; i < clothFaces.size(); i++)
-	//	vertices.push_back(clothFaces[i]);
-
 	UpdateSoftBodyVertices();
 	g_Cloth.Render(standardShader, g_Camera);
+
+	btTransform t = box->getWorldTransform();
+
+	GLfloat* ModelMatrix = new GLfloat[16];
+	t.getOpenGLMatrix(ModelMatrix);
+
+	g_Box.modelMatrix = glm::make_mat4x4(ModelMatrix);
+	g_Box.Render(standardShader, g_Camera);
 	//g_Sphere.Render(standardShader, g_Camera);
 	//RenderOld();
 
@@ -542,7 +505,6 @@ void Update()
 
 	if(mouseDown)
 		pickingPreTickCallback(dynamicsWorld, fDeltaTime);
-
 
 	dynamicsWorld->stepSimulation(fDeltaTime);
 	g_PreviousTicks = g_CurrentTicks;
@@ -638,80 +600,18 @@ void Reshape(int width, int height)
 void ResetPointer()
 {
 	glutWarpPointer(600, 400);
-	//glutSetCursor(GLUT_CURSOR_NONE);
 	lastX = 600.0f;
 	lastY = 400.0f;
 }
 
 
-btVector3	getRayTo(int x, int y)
-{
-	mouseX = (2.0f * x) / 1200.0f - 1.0f;
-	mouseY = 1.0f - (2.0f * y) / 800.0f;
-	glm::vec2 NSP = glm::vec2(mouseX, mouseY);
 
-	glm::vec4 clip = glm::vec4(NSP, -1.0f, 1.0f);
 
-	glm::mat4 invProjMat = glm::inverse(g_Camera.GetProjectionMatrix());
-	glm::vec4 eye = invProjMat * clip;
-	eye = glm::vec4(eye.x, eye.y, -1.0f, 0.0f);
 
-	glm::mat4 invViewMat = glm::inverse(g_Camera.GetViewMatrix());
-	glm::vec4 rayWorld = invViewMat * eye;
-	rayDirection = glm::normalize(glm::vec3(rayWorld));
-	rayDirection *= MAX_RAY_LENGTH;
-	btVector3 ray;
-	ray[0] = rayDirection.x;
-	ray[1] = rayDirection.y;
-	ray[2] = rayDirection.z;
-
-	return ray;
-}
-btSoftBody* m_pickedBody;
-int m_savedState;
-btTypedConstraint* m_pickedConstraint;
-btVector3 m_oldPickingPos;
-btVector3 m_hitPos;
-btScalar m_oldPickingDist;
-
-bool pickBody(const btVector3& rayFromWorld, const btVector3& rayToWorld)
-{
-	//if (dynamicsWorld == 0)
-	//	return false;
-
-	//btCollisionWorld::ClosestRayResultCallback rayCallback(rayFromWorld, rayToWorld);
-	//dynamicsWorld->rayTest(rayFromWorld, rayToWorld, rayCallback);
-	//if (rayCallback.hasHit()) {
-	//	btVector3 pickPos = rayCallback.m_hitPointWorld;
-	//	btSoftBody* body = (btSoftBody*)btSoftBody::upcast(rayCallback.m_collisionObject);
-	//	if (body) {
-	//		if (!(body->isStaticObject() || body->isKinematicObject())) {
-	//			m_pickedBody = body;
-	//			m_savedState = m_pickedBody->getActivationState();
-	//			m_pickedBody->setActivationState(DISABLE_DEACTIVATION);
-
-	//			btVector3 localPivot = body->getCenterOfMassTransform().inverse() * pickPos;
-	//			btPoint2PointConstraint* p2p = new btPoint2PointConstraint(*body, localPivot);
-	//			dynamicsWorld->addConstraint(p2p, true);
-	//			m_pickedConstraint = p2p;
-	//			btScalar mousePickClamping = 30.f;
-	//			p2p->m_setting.m_impulseClamp = mousePickClamping;
-	//			p2p->m_setting.m_tau = 0.001f;
-	//		}
-	//	}
-	//	m_oldPickingPos = rayToWorld;
-	//	m_hitPos = pickPos;
-	//	m_oldPickingDist = (pickPos - rayFromWorld).length();
-	//}
-	return true;
-}
-
+//Current constraint being held / manipulated;
 btPoint2PointConstraint* m_pickConstraint;
-bool								m_autocam;
 bool								m_cutting = true;
 bool								m_raycast;
-btScalar							m_animtime;
-btClock								m_clock;
 int									m_lastmousepos[2];
 btVector3							m_impact;
 btSoftBody::sRayCast				m_results;
@@ -732,6 +632,15 @@ struct	ImplicitSphere : btSoftBody::ImplicitFn
 	}
 };
 
+/* btMakeVector3 
+@Author : Cameron Peet
+@Desc   : Take in a glm::vec3 and return a btVector3
+*/
+btVector3 btMakeVector3(const glm::vec3& _kr)
+{
+	return btVector3(_kr.x, _kr.y, _kr.z);
+}
+
 void MouseButton(int button, int state, int x, int y)
 {
 	if (button == GLUT_LEFT_BUTTON)
@@ -739,59 +648,65 @@ void MouseButton(int button, int state, int x, int y)
 		if (state == GLUT_DOWN)
 		{
 			mouseDown = true;
-			glm::vec3 cpos = g_Camera.GetPosition();
-			btVector3 rayFrom;
-			rayFrom[0] = cpos.x;
-			rayFrom[1] = cpos.y;
-			rayFrom[2] = cpos.z;
+			
+			btVector3 rayFrom = btMakeVector3(g_Camera.GetPosition());
+			btVector3 rayTo = btMakeVector3(g_Camera.GetRayTo(x, y, 100.0f));
 
-			btVector3 rayTo = getRayTo(int(x), int(y));
-
+			//If we are not already holding a constraint
 			if (!m_pickConstraint)
 			{
 				const btVector3			rayDir = (rayTo - rayFrom).normalized();
+
+				//get a raycast result
 				btSoftBody::sRayCast	res;
 				cloth->rayTest(rayFrom, rayTo, res);
 				m_results = res;
 
-				if (m_results.fraction<1.f)
+				//Picking threshold 
+				if (m_results.fraction < 1.f)
 				{
-					std::cout << "IM IN" << std::endl;
-					m_impact = rayFrom + (rayTo - rayFrom)*m_results.fraction;
+					//Calculate impact direction
+					m_impact = rayFrom + (rayTo - rayFrom) * m_results.fraction;
+
+					//if cutting then draggin = false. If not cutting then dragging = true;
 					m_drag = m_cutting ? false : true;
+
+					//store last mousepos for calculating in the update picking function
 					m_lastmousepos[0] = x;
 					m_lastmousepos[1] = y;
+
 					m_node = 0;
+					//Switch the body type
 					switch (m_results.feature)
 					{
-					case btSoftBody::eFeature::Tetra:
-					{
-						btSoftBody::Tetra&	tet = m_results.body->m_tetras[m_results.index];
-						m_node = tet.m_n[0];
-						for (int i = 1; i<4; ++i)
+						case btSoftBody::eFeature::Tetra:
 						{
-							if ((m_node->m_x - m_impact).length2()>
-								(tet.m_n[i]->m_x - m_impact).length2())
+							btSoftBody::Tetra&	tet = m_results.body->m_tetras[m_results.index];
+							m_node = tet.m_n[0];
+							for (int i = 1; i<4; ++i)
 							{
-								m_node = tet.m_n[i];
+								if ((m_node->m_x - m_impact).length2()>
+									(tet.m_n[i]->m_x - m_impact).length2())
+								{
+									m_node = tet.m_n[i];
+								}
+							}
+							break;
+						}
+						case	btSoftBody::eFeature::Face:
+						{
+							btSoftBody::Face&	f = m_results.body->m_faces[m_results.index];
+							m_node = f.m_n[0];
+							for (int i = 1; i<3; ++i)
+							{
+								if ((m_node->m_x - m_impact).length2()>
+									(f.m_n[i]->m_x - m_impact).length2())
+								{
+									m_node = f.m_n[i];
+								}
 							}
 						}
 						break;
-					}
-					case	btSoftBody::eFeature::Face:
-					{
-						btSoftBody::Face&	f = m_results.body->m_faces[m_results.index];
-						m_node = f.m_n[0];
-						for (int i = 1; i<3; ++i)
-						{
-							if ((m_node->m_x - m_impact).length2()>
-								(f.m_n[i]->m_x - m_impact).length2())
-							{
-								m_node = f.m_n[i];
-							}
-						}
-					}
-					break;
 					}
 					if (m_node) m_goal = m_node->m_x;
 					return;
@@ -818,43 +733,24 @@ void MouseButton(int button, int state, int x, int y)
 		}
 	}
 }
-bool movePickedBody(const btVector3& rayFromWorld, const btVector3& rayToWorld) {
 
-	if (m_pickedBody  && m_pickedConstraint) {
-		btPoint2PointConstraint* pickCon = static_cast<btPoint2PointConstraint*>(m_pickedConstraint);
-		if (pickCon) {
-			btVector3 newPivotB;
-			btVector3 dir = rayToWorld - rayFromWorld;
-			dir.normalize();
-			dir *= m_oldPickingDist;
-			newPivotB = rayFromWorld + dir;
-			pickCon->setPivotB(newPivotB);
-			return true;
-		}
-	}
-	return false;
-}
 
 void MouseMoveWhileClicked(int x, int y)
 {
-	glm::vec3 cpos = g_Camera.GetPosition();
-	btVector3 rayFrom;
-	rayFrom[0] = cpos.x;
-	rayFrom[1] = cpos.y;
-	rayFrom[2]= cpos.z;
 
-	btVector3 rayTo = getRayTo(int(x), int(y));
+	btVector3 rayFrom = btMakeVector3(g_Camera.GetPosition());
+	btVector3 rayTo = btMakeVector3(g_Camera.GetRayTo(x, y, 100.0f));
 
 	if (m_node && (m_results.fraction < 1.f))
 	{
 		if (!m_drag)
 		{
-#define SQ(_x_) (_x_)*(_x_)
+			#define SQ(_x_) (_x_)*(_x_)
 			if ((SQ(x - m_lastmousepos[0]) + SQ(y - m_lastmousepos[1]))>6)
 			{
 				m_drag = true;
 			}
-#undef SQ	
+			#undef SQ	
 		}
 		if (m_drag)
 		{
@@ -974,7 +870,7 @@ void pickingPreTickCallback(btDynamicsWorld *world, btScalar timeStep)
 		
 		float target[3];
 
-		const btVector3			rayTo = getRayTo(x, y);
+		const btVector3			rayTo = btMakeVector3(g_Camera.GetRayTo(x, y, 100.0f));
 		const btVector3			rayDir = (rayTo - rayFrom).normalized();
 		const btVector3			N = (m_node->m_x - rayFrom).normalized();
 		const btScalar			O = btDot(m_impact, N);
@@ -1007,3 +903,59 @@ void pickingPreTickCallback(btDynamicsWorld *world, btScalar timeStep)
 	}
 }
 
+
+btSoftBody* m_pickedBody;
+int m_savedState;
+btTypedConstraint* m_pickedConstraint;
+btVector3 m_oldPickingPos;
+btVector3 m_hitPos;
+btScalar m_oldPickingDist;
+
+bool pickBody(const btVector3& rayFromWorld, const btVector3& rayToWorld)
+{
+	//if (dynamicsWorld == 0)
+	//	return false;
+
+	//btCollisionWorld::ClosestRayResultCallback rayCallback(rayFromWorld, rayToWorld);
+	//dynamicsWorld->rayTest(rayFromWorld, rayToWorld, rayCallback);
+	//if (rayCallback.hasHit()) {
+	//	btVector3 pickPos = rayCallback.m_hitPointWorld;
+	//	btSoftBody* body = (btSoftBody*)btSoftBody::upcast(rayCallback.m_collisionObject);
+	//	if (body) {
+	//		if (!(body->isStaticObject() || body->isKinematicObject())) {
+	//			m_pickedBody = body;
+	//			m_savedState = m_pickedBody->getActivationState();
+	//			m_pickedBody->setActivationState(DISABLE_DEACTIVATION);
+
+	//			btVector3 localPivot = body->getCenterOfMassTransform().inverse() * pickPos;
+	//			btPoint2PointConstraint* p2p = new btPoint2PointConstraint(*body, localPivot);
+	//			dynamicsWorld->addConstraint(p2p, true);
+	//			m_pickedConstraint = p2p;
+	//			btScalar mousePickClamping = 30.f;
+	//			p2p->m_setting.m_impulseClamp = mousePickClamping;
+	//			p2p->m_setting.m_tau = 0.001f;
+	//		}
+	//	}
+	//	m_oldPickingPos = rayToWorld;
+	//	m_hitPos = pickPos;
+	//	m_oldPickingDist = (pickPos - rayFromWorld).length();
+	//}
+	return true;
+}
+
+bool movePickedBody(const btVector3& rayFromWorld, const btVector3& rayToWorld) {
+
+	if (m_pickedBody  && m_pickedConstraint) {
+		btPoint2PointConstraint* pickCon = static_cast<btPoint2PointConstraint*>(m_pickedConstraint);
+		if (pickCon) {
+			btVector3 newPivotB;
+			btVector3 dir = rayToWorld - rayFromWorld;
+			dir.normalize();
+			dir *= m_oldPickingDist;
+			newPivotB = rayFromWorld + dir;
+			pickCon->setPivotB(newPivotB);
+			return true;
+		}
+	}
+	return false;
+}

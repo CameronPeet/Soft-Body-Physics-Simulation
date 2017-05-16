@@ -40,6 +40,8 @@ public:
 	glm::vec3 GetPosition() const;
 
 
+	glm::vec3 GetRayTo(int x, int y, float rayLength = 1.0f);
+
 protected:
 
 	void UpdateViewMatrix();
