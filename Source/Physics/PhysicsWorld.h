@@ -8,8 +8,6 @@
 #include <glm\glm.hpp>
 #include <glm\gtc\matrix_transform.hpp>
 
-//Bullet includes in steps 
-
 //STEP 1 - Setting up a world
 #include <bullet\btBulletDynamicsCommon.h>
 

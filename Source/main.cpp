@@ -39,13 +39,29 @@
 #include "Cloth.h"
 
 
-float mouseX, mouseY;
-bool mouseDown = false;
-glm::vec3 rayDirection;
-const float MAX_RAY_LENGTH = 100.0f;
+struct MouseInfo
+{
+	//FPS movement
+	float lastX = 600.0f;
+	float lastY = 400.0f;
+
+	float pitch = 0.0f;
+	float yaw = 90.0f;
+	bool firstMouse = true;
+
+	//used for physics
+
+	//noramalised mouseX and Y coords
+	//NDC
+	float mouseX, mouseY;
+	bool mouseDown = false;
+};
+
+MouseInfo g_MouseInfo;
+
+//Raycasting Mouse info
 void pickingPreTickCallback(btDynamicsWorld *world, btScalar timeStep);
 
-glm::vec3 Up = glm::vec3(0, 1, 0), Right, viewDir;
 
 //Local Functions
 bool Init();
@@ -77,6 +93,7 @@ GLuint terrainShader;
 GLuint geometry_explode_shader;
 GLuint geometry_show_normals;
 GLuint geometry_model_star;
+
 GLuint* AllShaders[] =
 {
 	&standardShader,
@@ -96,34 +113,27 @@ Light g_GlobalLight;
 
 
 glm::vec3 g_Movement;
-glm::vec2 g_MousePos;
-
-float lastX = 600.0f, lastY = 400.0f;
-float yaw = 90.0f, pitch = 0.0f;
-bool firstMouse = true;
 
 
+
+//Bullet physics entities
+//Initialised in CreatePhysicsWorld();
 btBroadphaseInterface*					broadphase;
 btDefaultCollisionConfiguration*		collisionConfiguration;
 btCollisionDispatcher*					dispatcher;
 btSequentialImpulseConstraintSolver*	solver;
 btSoftRigidDynamicsWorld*				dynamicsWorld;
 
+
+
 btSoftBody* cloth;
 PhysicsBody g_Cloth;
-
 btRigidBody* box;
 Model g_Box;
-
-
 btSoftBodyWorldInfo softBodyWorldInfo;
 
 
-int oldX = 0, oldY = 0;
-float rX = 15, rY = 0;
-int state = 1;
-float dist = -23;
-const int GRID_SIZE = 10;
+
 
 btRigidBody* createRigidBody(float mass, const btTransform& startTransform, btCollisionShape* shape, const btVector4& color = btVector4(1, 0, 0, 1))
 {
@@ -174,17 +184,21 @@ void CreatePhysicsWorld()
 	softBodyWorldInfo.m_dispatcher = dispatcher;
 	softBodyWorldInfo.m_gravity = dynamicsWorld->getGravity();
 	softBodyWorldInfo.m_sparsesdf.Initialize();
+
 }
 
 void CreatePhysicsCloth()
 {
 	const btScalar s = 4;
-	const int numX = 25;
-	const int numY = 25;
+
+	const int numX = 20;
+	const int numY = 20;
+
 	const int fixed = 1 + 2;
 
 	tex_coords = new float[(numX - 1)*(numY - 1) * 12];
 
+	//This creates the cloth, and the UV extention tex_coords calculates the texture coords and places them in that array
 	cloth = btSoftBodyHelpers::CreatePatchUV(softBodyWorldInfo,
 		btVector3(-s / 2, s + 1, 0),
 		btVector3(+s / 2, s + 1, 0),
@@ -193,12 +207,27 @@ void CreatePhysicsCloth()
 		numX, numY,
 		fixed, true, tex_coords);
 
-	cloth->getCollisionShape()->setMargin(0.001f);
-	cloth->generateBendingConstraints(2, cloth->appendMaterial());
+	btSoftBody::Material* pm= cloth->appendMaterial();
+	pm->m_kLST = 0.3;
+	pm->m_kAST = 0.2;
+	pm->m_kVST = 0.5;
+
+	cloth->getCollisionShape()->setMargin(0.01f);
+
+	cloth->generateBendingConstraints(2, pm);
+
+	cloth->m_cfg.citerations = 10;
+	cloth->m_cfg.diterations = 10;
+
+	cloth->m_cfg.piterations = 7;
+
+	cloth->m_cfg.collisions = btSoftBody::fCollision::SDF_RS+btSoftBody::fCollision::CL_SS + btSoftBody::fCollision::CL_SELF;
+	
 	cloth->setTotalMass(10);
-	//cloth->m_cfg.citerations = 10;
-	//	cloth->m_cfg.diterations = 10;
-	cloth->m_cfg.piterations = 5;
+	
+	cloth->generateClusters(8);
+
+	cloth->m_cfg.kDF = 1.0;
 	cloth->m_cfg.kDP = 0.005f;
 
 	dynamicsWorld->addSoftBody(cloth);
@@ -209,8 +238,10 @@ void CreatePhysicsBox()
 	btBoxShape* groundShape = new btBoxShape(btVector3(btScalar(1.1), btScalar(1.1), btScalar(1.1)));
 	btTransform groundTransform;
 	groundTransform.setIdentity();
+	
 	glm::mat4 transform;
 	transform = glm::translate(transform, glm::vec3(0, 1, 0));
+
 	groundTransform.setFromOpenGLMatrix(glm::value_ptr(transform));
 
 	box = createRigidBody(btScalar(0.), groundTransform, groundShape);
@@ -322,12 +353,14 @@ bool Init()
 		"Assets/skybox/front.jpg");
 	g_SkyBox.Initialise();
 
+	
 	g_Cloth = PhysicsBody();
 	g_Cloth.DynamicDraw = true;
 	g_Cloth.texturePath = "assets/textures/Cloth.jpg";
 	g_Cloth.Initialise();
 	g_Cloth.m_Position = glm::vec3(0, 0, 0);
 	g_Cloth.ObjectColor = glm::vec3(1.0f, 1.0f, 1.0f);
+
 
 	g_Box = Model(CUBE, "assets/textures/ball.jpg", true);
 	g_Box.Initialise();
@@ -358,6 +391,8 @@ void UpdateSoftBodyVertices()
 	/* Node::m_x => position             */
 	/* Node::m_n => normal				 */
 	int ndoesize = _nodes.size();
+	int tex = 0;
+
 	for (int j = 0; j< _nodes.size(); ++j)
 	{
 		Vertex2 v = Vertex2();
@@ -366,7 +401,7 @@ void UpdateSoftBodyVertices()
 
 		v.pos = glm::vec3(p[0], p[1], p[2]);
 		v.n = glm::vec3(n[0], n[1], n[2]);
-		v.uv = glm::vec2(0, 0);
+
 
 		g_Cloth.vertices.push_back(v);
 	}
@@ -384,24 +419,26 @@ void UpdateSoftBodyVertices()
 		btVector3 p2 = node_1->m_x;
 		btVector3 n2 = node_1->m_n;
 
-		Vertex2 v = Vertex2();
-		Vertex2 v2 = Vertex2();
+		Vertex2 v0 = Vertex2();
+		Vertex2 v1 = Vertex2();
 
-		v2.pos = glm::vec3(p2[0], p2[1], p2[2]);
-		v.pos = glm::vec3(p1[0], p1[1], p1[2]);
-		v2.n = glm::vec3(n2[0], n2[1], n2[2]);
-		v.n = glm::vec3(n1[0], n1[1], n1[2]);
-		v2.uv = glm::vec2(0, 0);
-		v.uv = glm::vec2(0, 0);
 
-		g_Cloth.vertices.push_back(v);
-		g_Cloth.vertices.push_back(v2);
+		v0.pos = glm::vec3(p1[0], p1[1], p1[2]);
+		v0.n = glm::vec3(n1[0], n1[1], n1[2]);
+		v0.uv = glm::vec2(tex_coords[tex + 0], tex_coords[tex + 1]);
+
+		v1.pos = glm::vec3(p2[0], p2[1], p2[2]);
+		v1.n = glm::vec3(n2[0], n2[1], n2[2]);
+		v1.uv = glm::vec2(tex_coords[tex + 2], tex_coords[tex + 3]);
+
+		g_Cloth.vertices.push_back(v0);
+		g_Cloth.vertices.push_back(v1);
+
+		tex += 4;
 	}
 
 	/* And faces							*/
 	/* Face::m_n[3] -> pointers to nodes	*/
-	int index = 0;
-	int tex = 0;
 	for (int j = 0; j< _faces.size(); ++j)
 	{
 		btSoftBody::Node*   node_0 = _faces[j].m_n[0];
@@ -419,17 +456,17 @@ void UpdateSoftBodyVertices()
 		Vertex2 v1 = Vertex2();
 		Vertex2 v2 = Vertex2();
 
-		v2.pos = glm::vec3(p3[0], p3[1], p3[2]);
-		v2.n = glm::vec3(n3[0], n3[1], n3[2]);
-		v2.uv = glm::vec2(tex_coords[tex + 0], tex_coords[tex + 1]);
+		v.pos = glm::vec3(p1[0], p1[1], p1[2]);
+		v.n = glm::vec3(n1[0], n1[1], n1[2]);
+		v.uv = glm::vec2(tex_coords[tex + 0], tex_coords[tex + 1]);
 
 		v1.pos = glm::vec3(p2[0], p2[1], p2[2]);
 		v1.n = glm::vec3(n2[0], n2[1], n2[2]);
 		v1.uv = glm::vec2(tex_coords[tex + 2], tex_coords[tex + 3]);
-
-		v.pos = glm::vec3(p1[0], p1[1], p1[2]);
-		v.n = glm::vec3(n1[0], n1[1], n1[2]);
-		v.uv = glm::vec2(tex_coords[tex + 4], tex_coords[tex + 5]);
+		
+		v2.pos = glm::vec3(p3[0], p3[1], p3[2]);
+		v2.n = glm::vec3(n3[0], n3[1], n3[2]);
+		v2.uv = glm::vec2(tex_coords[tex + 4], tex_coords[tex + 5]);
 
 		g_Cloth.vertices.push_back(v);
 		g_Cloth.vertices.push_back(v1);
@@ -457,7 +494,6 @@ void Render()
 	g_Cloth.Render(standardShader, g_Camera);
 
 	btTransform t = box->getWorldTransform();
-
 	GLfloat* ModelMatrix = new GLfloat[16];
 	t.getOpenGLMatrix(ModelMatrix);
 
@@ -476,12 +512,21 @@ void Update()
 
 	float fDeltaTime = deltaTicks / (float)CLOCKS_PER_SEC;
 
-	if(mouseDown)
+
+
+	//Physics Update Stuff
+
+	//If dragging a body / soft body
+	if(g_MouseInfo.mouseDown)
 		pickingPreTickCallback(dynamicsWorld, fDeltaTime);
 
+	//World Simulation
 	dynamicsWorld->stepSimulation(fDeltaTime);
-	g_PreviousTicks = g_CurrentTicks;
 
+
+
+
+	g_PreviousTicks = g_CurrentTicks;
 
 	glUseProgram(0);
 	g_Camera.Translate(g_Movement * 10.0f * fDeltaTime);
@@ -573,8 +618,8 @@ void Reshape(int width, int height)
 void ResetPointer()
 {
 	glutWarpPointer(600, 400);
-	lastX = 600.0f;
-	lastY = 400.0f;
+	g_MouseInfo.lastX = 600.0f;
+	g_MouseInfo.lastY = 400.0f;
 }
 
 
@@ -620,7 +665,7 @@ void MouseButton(int button, int state, int x, int y)
 	{
 		if (state == GLUT_DOWN)
 		{
-			mouseDown = true;
+			g_MouseInfo.mouseDown = true;
 			
 			btVector3 rayFrom = btMakeVector3(g_Camera.GetPosition());
 			btVector3 rayTo = btMakeVector3(g_Camera.GetRayTo(x, y, 100.0f));
@@ -644,6 +689,8 @@ void MouseButton(int button, int state, int x, int y)
 					//if cutting then draggin = false. If not cutting then dragging = true;
 					m_drag = m_cutting ? false : true;
 
+
+				    //this  <- if then (true statement ) : (false statement)
 					//store last mousepos for calculating in the update picking function
 					m_lastmousepos[0] = x;
 					m_lastmousepos[1] = y;
@@ -670,6 +717,7 @@ void MouseButton(int button, int state, int x, int y)
 						{
 							btSoftBody::Face&	f = m_results.body->m_faces[m_results.index];
 							m_node = f.m_n[0];
+
 							for (int i = 1; i<3; ++i)
 							{
 								if ((m_node->m_x - m_impact).length2()>
@@ -684,25 +732,28 @@ void MouseButton(int button, int state, int x, int y)
 					if (m_node) m_goal = m_node->m_x;
 					return;
 				}
-
 			}
-
 		}
 
 		if (state == GLUT_UP)
 		{
 			if ((!m_drag) && m_cutting && (m_results.fraction<1.f))
 			{
-				ImplicitSphere	isphere(m_impact, 0.2f);
+				ImplicitSphere	isphere(m_impact, 1);
 				printf("Mass before: %f\r\n", m_results.body->getTotalMass());
+				m_results.body->releaseClusters();
 				m_results.body->refine(&isphere, 0.0001, true);
+				m_results.body->generateClusters(8);
+				m_results.body->updateClusters();
+
 				printf("Mass after: %f\r\n", m_results.body->getTotalMass());
 			}
+
 			m_results.fraction = 1.f;
 			m_drag = false;
 
 			ResetPointer();
-			mouseDown = false;
+			g_MouseInfo.mouseDown = false;
 		}
 	}
 }
@@ -710,10 +761,6 @@ void MouseButton(int button, int state, int x, int y)
 
 void MouseMoveWhileClicked(int x, int y)
 {
-
-	btVector3 rayFrom = btMakeVector3(g_Camera.GetPosition());
-	btVector3 rayTo = btMakeVector3(g_Camera.GetRayTo(x, y, 100.0f));
-
 	if (m_node && (m_results.fraction < 1.f))
 	{
 		if (!m_drag)
@@ -735,7 +782,7 @@ void MouseMoveWhileClicked(int x, int y)
 
 void PassiveMotion(int x, int y)
 {
-	if (mouseDown)
+	if (g_MouseInfo.mouseDown)
 	{
 		return;
 	}
@@ -746,29 +793,29 @@ void PassiveMotion(int x, int y)
 		return;
 	}
 
-	GLfloat xoffset = x - lastX;
-	GLfloat yoffset = lastY - y;
+	GLfloat xoffset = x - g_MouseInfo.lastX;
+	GLfloat yoffset = g_MouseInfo.lastY - y;
 
-	lastX = static_cast<float>(x);
-	lastY = static_cast<float>(y);
+	g_MouseInfo.lastX = static_cast<float>(x); 
+	g_MouseInfo.lastY = static_cast<float>(y);
 
 	GLfloat sensitivity = 0.005f;
 	xoffset *= sensitivity;
 	yoffset *= sensitivity;
 
-	yaw += xoffset;
-	pitch += yoffset;
+	g_MouseInfo.yaw += xoffset;
+	g_MouseInfo.pitch += yoffset;
 
-	if (pitch > 89.0f)
-		pitch = 89.0f;
-	if (pitch < -89.0f)
-		pitch = -89.0f;
+	if (g_MouseInfo.pitch > 89.0f)
+		g_MouseInfo.pitch = 89.0f;
+	if (g_MouseInfo.pitch < -89.0f)
+		g_MouseInfo.pitch = -89.0f;
 
 
 
 	g_Camera.SetRotation(glm::quat());
-	g_Camera.Rotate(glm::angleAxis(-yaw, glm::vec3(0, 1, 0)));
-	g_Camera.Rotate(glm::angleAxis(pitch, glm::vec3(1, 0, 0)));
+	g_Camera.Rotate(glm::angleAxis(-g_MouseInfo.yaw, glm::vec3(0, 1, 0)));
+	g_Camera.Rotate(glm::angleAxis(g_MouseInfo.pitch, glm::vec3(1, 0, 0)));
 
 
 	ResetPointer();
@@ -807,11 +854,13 @@ void BindUBO()
 }
 
 
-///for mouse picking
+//for mouse picking
 void pickingPreTickCallback(btDynamicsWorld *world, btScalar timeStep)
 {
 	if (m_drag)
 	{
+
+		//Calculating the goal position
 		const int	x = m_lastmousepos[0];
 		const int	y = m_lastmousepos[1];
 		float		rf[3];
@@ -821,10 +870,11 @@ void pickingPreTickCallback(btDynamicsWorld *world, btScalar timeStep)
 		const btVector3	rayTo = btMakeVector3(g_Camera.GetRayTo(x, y, 100.0f));
 		const btVector3	rayDir = (rayTo - rayFrom).normalized();
 		const btVector3	N = (m_node->m_x - rayFrom).normalized();
+
 		const btScalar	O = btDot(m_impact, N);
 		const btScalar	den = btDot(N, rayDir);
 
-		if ((den*den)>0)
+		if ((den * den) > 0)
 		{
 			const btScalar			num = O - btDot(N, rayFrom);
 			const btScalar			hit = num / den;
@@ -833,78 +883,90 @@ void pickingPreTickCallback(btDynamicsWorld *world, btScalar timeStep)
 				m_goal = rayFrom + rayDir*hit;
 			}
 		}
+
+		//Either cut the object if the force is too great
+		//else
+		// Apply force towards the m_goal position
 		btVector3				delta = m_goal - m_node->m_x;
 		static const btScalar	maxdrag = 10;
 		if (delta.length2()>(maxdrag*maxdrag))
 		{
 			ImplicitSphere	isphere(m_impact, 1);
 			printf("Mass before: %f\r\n", m_results.body->getTotalMass());
+
+			m_results.body->releaseClusters();
 			m_results.body->refine(&isphere, 0.0001, true);
+			m_results.body->generateClusters(8);
+			m_results.body->updateClusters();
+
 			printf("Mass after: %f\r\n", m_results.body->getTotalMass());
 			m_results.fraction = 1.f;
 			m_drag = false;
 
 			ResetPointer();
-			mouseDown = false;
-			delta = delta.normalized()*maxdrag;
+			g_MouseInfo.mouseDown = false;
+			delta = delta.normalized() * maxdrag;
 		}
-		m_node->m_v += delta / timeStep;
+		else
+		{
+			m_node->m_v += delta / timeStep;
+		}
 	}
 }
 
 
-btSoftBody* m_pickedBody;
-int m_savedState;
-btTypedConstraint* m_pickedConstraint;
-btVector3 m_oldPickingPos;
-btVector3 m_hitPos;
-btScalar m_oldPickingDist;
-
-bool pickBody(const btVector3& rayFromWorld, const btVector3& rayToWorld)
-{
-	if (dynamicsWorld == 0)
-		return false;
-
-	btCollisionWorld::ClosestRayResultCallback rayCallback(rayFromWorld, rayToWorld);
-	dynamicsWorld->rayTest(rayFromWorld, rayToWorld, rayCallback);
-	if (rayCallback.hasHit()) {
-		btVector3 pickPos = rayCallback.m_hitPointWorld;
-		btRigidBody* body = (btRigidBody*)btRigidBody::upcast(rayCallback.m_collisionObject);
-		if (body) {
-			if (!(body->isStaticObject() || body->isKinematicObject())) {
-				//m_pickedBody = body; //is a soft body for the cloth atm.
-				m_savedState = m_pickedBody->getActivationState();
-				m_pickedBody->setActivationState(DISABLE_DEACTIVATION);
-
-				btVector3 localPivot = body->getCenterOfMassTransform().inverse() * pickPos;
-				btPoint2PointConstraint* p2p = new btPoint2PointConstraint(*body, localPivot);
-				dynamicsWorld->addConstraint(p2p, true);
-				m_pickedConstraint = p2p;
-				btScalar mousePickClamping = 30.f;
-				p2p->m_setting.m_impulseClamp = mousePickClamping;
-				p2p->m_setting.m_tau = 0.001f;
-			}
-		}
-		m_oldPickingPos = rayToWorld;
-		m_hitPos = pickPos;
-		m_oldPickingDist = (pickPos - rayFromWorld).length();
-	}
-	return true;
-}
-
-bool movePickedBody(const btVector3& rayFromWorld, const btVector3& rayToWorld) {
-
-	if (m_pickedBody  && m_pickedConstraint) {
-		btPoint2PointConstraint* pickCon = static_cast<btPoint2PointConstraint*>(m_pickedConstraint);
-		if (pickCon) {
-			btVector3 newPivotB;
-			btVector3 dir = rayToWorld - rayFromWorld;
-			dir.normalize();
-			dir *= m_oldPickingDist;
-			newPivotB = rayFromWorld + dir;
-			pickCon->setPivotB(newPivotB);
-			return true;
-		}
-	}
-	return false;
-}
+//btSoftBody* m_pickedBody;
+//int m_savedState;
+//btTypedConstraint* m_pickedConstraint;
+//btVector3 m_oldPickingPos;
+//btVector3 m_hitPos;
+//btScalar m_oldPickingDist;
+//
+//bool pickBody(const btVector3& rayFromWorld, const btVector3& rayToWorld)
+//{
+//	if (dynamicsWorld == 0)
+//		return false;
+//
+//	btCollisionWorld::ClosestRayResultCallback rayCallback(rayFromWorld, rayToWorld);
+//	dynamicsWorld->rayTest(rayFromWorld, rayToWorld, rayCallback);
+//	if (rayCallback.hasHit()) {
+//		btVector3 pickPos = rayCallback.m_hitPointWorld;
+//		btRigidBody* body = (btRigidBody*)btRigidBody::upcast(rayCallback.m_collisionObject);
+//		if (body) {
+//			if (!(body->isStaticObject() || body->isKinematicObject())) {
+//				//m_pickedBody = body; //is a soft body for the cloth atm.
+//				m_savedState = m_pickedBody->getActivationState();
+//				m_pickedBody->setActivationState(DISABLE_DEACTIVATION);
+//
+//				btVector3 localPivot = body->getCenterOfMassTransform().inverse() * pickPos;
+//				btPoint2PointConstraint* p2p = new btPoint2PointConstraint(*body, localPivot);
+//				dynamicsWorld->addConstraint(p2p, true);
+//				m_pickedConstraint = p2p;
+//				btScalar mousePickClamping = 30.f;
+//				p2p->m_setting.m_impulseClamp = mousePickClamping;
+//				p2p->m_setting.m_tau = 0.001f;
+//			}
+//		}
+//		m_oldPickingPos = rayToWorld;
+//		m_hitPos = pickPos;
+//		m_oldPickingDist = (pickPos - rayFromWorld).length();
+//	}
+//	return true;
+//}
+//
+//bool movePickedBody(const btVector3& rayFromWorld, const btVector3& rayToWorld) {
+//
+//	if (m_pickedBody  && m_pickedConstraint) {
+//		btPoint2PointConstraint* pickCon = static_cast<btPoint2PointConstraint*>(m_pickedConstraint);
+//		if (pickCon) {
+//			btVector3 newPivotB;
+//			btVector3 dir = rayToWorld - rayFromWorld;
+//			dir.normalize();
+//			dir *= m_oldPickingDist;
+//			newPivotB = rayFromWorld + dir;
+//			pickCon->setPivotB(newPivotB);
+//			return true;
+//		}
+//	}
+//	return false;
+//}

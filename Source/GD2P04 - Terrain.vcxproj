@@ -128,7 +128,7 @@
     <LibraryPath>$(SolutionDir)\Dependencies\lib\bullet\\release;$(SolutionDir)\Dependencies\lib;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <IncludePath>$(SolutionDir)\Dependencies\include;$(IncludePath)</IncludePath>
+    <IncludePath>$(SolutionDir)\Dependencies\include\bullet;Physics;Graphics;Utility;$(SolutionDir)\Dependencies\include;$(IncludePath)</IncludePath>
     <LibraryPath>$(SolutionDir)\Dependencies\lib\x64;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -136,7 +136,7 @@
     <LibraryPath>$(SolutionDir)\Dependencies\lib\bullet\release;$(SolutionDir)\Dependencies\lib;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <IncludePath>$(SolutionDir)\Dependencies\include;$(IncludePath)</IncludePath>
+    <IncludePath>$(SolutionDir)\Dependencies\include\bullet;Physics;Graphics;Utility;$(SolutionDir)\Dependencies\include;$(IncludePath)</IncludePath>
     <LibraryPath>$(SolutionDir)\Dependencies\lib\x64;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
