@@ -70,6 +70,9 @@ void Update();
 void KeyDown(unsigned char key, int x, int y);
 void KeyUp(unsigned char key, int x, int y);
 void Reshape(int width, int height);
+void ResetCloth();
+void CreatePhysicsCloth(btScalar x, btScalar y);
+void CreatePhysicsWorld();
 void PassiveMotion(int x, int y);
 void MouseButton(int button, int state, int x, int y);
 void MouseMoveWhileClicked(int x, int y);
@@ -132,7 +135,9 @@ btRigidBody* box;
 Model g_Box;
 btSoftBodyWorldInfo softBodyWorldInfo;
 
-
+btScalar g_ClothScalarX = 4;
+btScalar g_ClothScalarY = 4;
+float g_ResizeTimer = 0.0f;
 
 
 btRigidBody* createRigidBody(float mass, const btTransform& startTransform, btCollisionShape* shape, const btVector4& color = btVector4(1, 0, 0, 1))
@@ -187,9 +192,11 @@ void CreatePhysicsWorld()
 
 }
 
-void CreatePhysicsCloth()
+void CreatePhysicsCloth(btScalar x, btScalar y)
 {
 	const btScalar s = 4;
+
+	std::cout << "x = " << x << ", y = " << y << ", s = " << s << endl;
 
 	const int numX = 20;
 	const int numY = 20;
@@ -200,10 +207,10 @@ void CreatePhysicsCloth()
 
 	//This creates the cloth, and the UV extention tex_coords calculates the texture coords and places them in that array
 	cloth = btSoftBodyHelpers::CreatePatchUV(softBodyWorldInfo,
-		btVector3(-s / 2, s + 1, 0),
-		btVector3(+s / 2, s + 1, 0),
-		btVector3(-s / 2, s + 1, +s),
-		btVector3(+s / 2, s + 1, +s),
+		btVector3(-x / 2, y + 1, 0),
+		btVector3(+x / 2, y + 1, 0),
+		btVector3(-x / 2, s - y + 1, +s),
+		btVector3(+x / 2, s - y + 1, +s),
 		numX, numY,
 		fixed, true, tex_coords);
 
@@ -299,7 +306,7 @@ bool Init()
 		return false;
 	}
 
-	CreatePhysicsCloth();
+	CreatePhysicsCloth(g_ClothScalarX, g_ClothScalarY);
 	CreatePhysicsBox();
 
 
@@ -512,8 +519,6 @@ void Update()
 
 	float fDeltaTime = deltaTicks / (float)CLOCKS_PER_SEC;
 
-
-
 	//Physics Update Stuff
 
 	//If dragging a body / soft body
@@ -523,8 +528,7 @@ void Update()
 	//World Simulation
 	dynamicsWorld->stepSimulation(fDeltaTime);
 
-
-
+	g_ResizeTimer += fDeltaTime;
 
 	g_PreviousTicks = g_CurrentTicks;
 
@@ -566,6 +570,53 @@ void KeyDown(unsigned char key, int x, int y)
 	case VK_ESCAPE:
 		glutLeaveMainLoop();
 		break;
+
+	case 'r':
+	case 'R':
+		g_ClothScalarX = 4;
+		g_ClothScalarY = 4;
+		Init();
+		break;
+
+	case 'i':
+	case 'I':
+
+		if ((g_ClothScalarY < 9) && (g_ResizeTimer > 1.0f))
+		{
+			g_ClothScalarY += 1;
+			ResetCloth();
+		}	
+		break;
+
+	case 'k':
+	case 'K':
+		if ((g_ClothScalarY > 2) && (g_ResizeTimer > 1.0f))
+		{
+			g_ClothScalarY -= 1;
+			ResetCloth();
+		}
+
+		break;
+
+	case 'j':
+	case 'J':
+		if ((g_ClothScalarX > 2) && (g_ResizeTimer > 1.0f))
+		{
+			g_ClothScalarX -= 1;
+			ResetCloth();
+		}
+		
+		break;
+
+	case 'l':
+	case 'L':
+		if ((g_ClothScalarX < 9) && (g_ResizeTimer > 1.0f))
+		{
+			g_ClothScalarX += 1;
+			ResetCloth();
+		}
+		break;
+
 	default:
 		break;
 	}
@@ -612,6 +663,25 @@ void Reshape(int width, int height)
 
 	g_Camera.SetViewPort(0, 0, width, height);
 	g_Camera.SetProjection(45.0f, (float)(width / height), 0.1f, 1000.0f);
+}
+
+void ResetCloth()
+{
+	dynamicsWorld->removeSoftBody(cloth);
+	cloth = nullptr;
+	g_Cloth.~PhysicsBody();
+
+//	std::cout << g_ClothScalar << endl;
+	CreatePhysicsCloth(g_ClothScalarX, g_ClothScalarY);
+
+	g_Cloth = PhysicsBody();
+	g_Cloth.DynamicDraw = true;
+	g_Cloth.texturePath = "assets/textures/Cloth.jpg";
+	g_Cloth.Initialise();
+	g_Cloth.m_Position = glm::vec3(0, 0, 0);
+	g_Cloth.ObjectColor = glm::vec3(1.0f, 1.0f, 1.0f);
+
+	g_ResizeTimer = 0.0f;
 }
 
 
