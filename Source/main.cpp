@@ -723,7 +723,10 @@ void Reshape(int width, int height)
 
 void ResetCloth()
 {
+	cloth->releaseClusters();
+	cloth->~btSoftBody();
 	dynamicsWorld->removeSoftBody(cloth);
+	delete cloth;
 	cloth = nullptr;
 	//g_Cloth.~PhysicsBody();
 
