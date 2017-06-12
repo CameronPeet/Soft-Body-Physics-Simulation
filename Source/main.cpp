@@ -420,12 +420,21 @@ void UpdateSoftBodyVertices()
 
 	/* Or edges (for ropes)               */
 	/* Link::m_n[2] => pointers to nodes   */
+	/*if (node_0->m_v.length >= 0.1f)
+	{
+		int node1 = (int(node_0 - &_nodes[0]));
+		int node2 = (int(node_1 - &_nodes[0]));
+
+	}*/
+
 
 	for (int j = 0; j<_links.size(); ++j)
 	{
 		btSoftBody::Node*   node_0 = _links[j].m_n[0];
 		btSoftBody::Node*   node_1 = _links[j].m_n[1];
 
+
+			
 		btVector3 p1 = node_0->m_x;
 		btVector3 n1 = node_0->m_n;
 		btVector3 p2 = node_1->m_x;
@@ -779,6 +788,18 @@ struct	ImplicitSphere : btSoftBody::ImplicitFn
 	}
 };
 
+struct ImplicitPlane : btSoftBody::ImplicitFn
+{
+	btVector3	point;
+	btVector3	normal;
+	ImplicitPlane() {}
+	ImplicitPlane(btVector3& point, btVector3& normal) : point(point), normal(normal) {}
+	btScalar	Eval(const btVector3& x)
+	{
+		return normal.dot((x - point));
+	}
+};
+
 
 btSoftBody::Face* m_faceHit;
 /* btMakeVector3 
@@ -871,12 +892,16 @@ void MouseButton(int button, int state, int x, int y)
 			if ((!m_drag) && m_cutting && (m_results.fraction<1.f))
 			{
 
-				//ImplicitSphere	isphere(m_impact, 1);
+
+				ImplicitSphere	isphere(m_impact, 1);
+				ImplicitPlane plane(m_impact, btVector3(0, 0, 1));
 				//printf("Mass before: %f\r\n", m_results.body->getTotalMass());
-				//m_results.body->releaseClusters();
-				//m_results.body->refine(&isphere, 0.0001, true);
-				//m_results.body->generateClusters(8);
-				//m_results.body->updateClusters();
+				m_results.body->releaseClusters();
+				m_results.body->refine(&plane, 0.0001, true);
+				m_results.body->generateClusters(8);
+				m_results.body->updateClusters();
+
+
 
 				//printf("Mass after: %f\r\n", m_results.body->getTotalMass());
 			}
@@ -989,9 +1014,9 @@ void BindUBO()
 //for mouse picking
 void pickingPreTickCallback(btDynamicsWorld *world, btScalar timeStep)
 {
+
 	if (m_drag)
 	{
-
 		//Calculating the goal position
 		const int	x = m_lastmousepos[0];
 		const int	y = m_lastmousepos[1];
@@ -1032,7 +1057,6 @@ void pickingPreTickCallback(btDynamicsWorld *world, btScalar timeStep)
 			//m_results.body->updateClusters();
 
 	/*		printf("Mass after: %f\r\n", m_results.body->getTotalMass());*/
-
 
 			m_results.fraction = 1.f;
 			m_drag = false;
