@@ -581,7 +581,7 @@ void KeyDown(unsigned char key, int x, int y)
 	case 'i':
 	case 'I':
 
-		if ((g_ClothScalarY < 9) && (g_ResizeTimer > 1.0f))
+		if ((g_ClothScalarY < 9) && (g_ResizeTimer > 0.5f))
 		{
 			g_ClothScalarY += 1;
 			ResetCloth();
@@ -590,7 +590,7 @@ void KeyDown(unsigned char key, int x, int y)
 
 	case 'k':
 	case 'K':
-		if ((g_ClothScalarY > 2) && (g_ResizeTimer > 1.0f))
+		if ((g_ClothScalarY > 2) && (g_ResizeTimer > 0.5f))
 		{
 			g_ClothScalarY -= 1;
 			ResetCloth();
@@ -600,7 +600,7 @@ void KeyDown(unsigned char key, int x, int y)
 
 	case 'j':
 	case 'J':
-		if ((g_ClothScalarX > 2) && (g_ResizeTimer > 1.0f))
+		if ((g_ClothScalarX > 2) && (g_ResizeTimer > 0.5f))
 		{
 			g_ClothScalarX -= 1;
 			ResetCloth();
@@ -610,13 +610,26 @@ void KeyDown(unsigned char key, int x, int y)
 
 	case 'l':
 	case 'L':
-		if ((g_ClothScalarX < 9) && (g_ResizeTimer > 1.0f))
+		if ((g_ClothScalarX < 9) && (g_ResizeTimer > 0.5f))
 		{
 			g_ClothScalarX += 1;
 			ResetCloth();
 		}
 		break;
+	case VK_SPACE:
+	{
+		btSoftBody::tNodeArray&   _nodes(cloth->m_nodes);
 
+		btSoftBody::tFaceArray _faces(cloth->m_faces);
+
+		btSoftBody::tJointArray _joints(cloth->m_joints);
+
+		for (int j = 0; j< _joints.size(); ++j)
+		{
+			_joints[j]->m_bodies->m_soft->m_imass = 0.0f;
+		}
+	} 
+		break;
 	default:
 		break;
 	}
@@ -669,17 +682,17 @@ void ResetCloth()
 {
 	dynamicsWorld->removeSoftBody(cloth);
 	cloth = nullptr;
-	g_Cloth.~PhysicsBody();
+	//g_Cloth.~PhysicsBody();
 
 //	std::cout << g_ClothScalar << endl;
 	CreatePhysicsCloth(g_ClothScalarX, g_ClothScalarY);
 
-	g_Cloth = PhysicsBody();
-	g_Cloth.DynamicDraw = true;
-	g_Cloth.texturePath = "assets/textures/Cloth.jpg";
-	g_Cloth.Initialise();
-	g_Cloth.m_Position = glm::vec3(0, 0, 0);
-	g_Cloth.ObjectColor = glm::vec3(1.0f, 1.0f, 1.0f);
+	//g_Cloth = PhysicsBody();
+	//g_Cloth.DynamicDraw = true;
+	//g_Cloth.texturePath = "assets/textures/Cloth.jpg";
+	//g_Cloth.Initialise();
+	//g_Cloth.m_Position = glm::vec3(0, 0, 0);
+	//g_Cloth.ObjectColor = glm::vec3(1.0f, 1.0f, 1.0f);
 
 	g_ResizeTimer = 0.0f;
 }
