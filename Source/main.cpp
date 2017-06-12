@@ -38,7 +38,6 @@
 
 #include "Cloth.h"
 
-
 struct MouseInfo
 {
 	//FPS movement
@@ -212,7 +211,9 @@ void CreatePhysicsCloth(btScalar x, btScalar y)
 		btVector3(-x / 2, s - y + 1, +s),
 		btVector3(+x / 2, s - y + 1, +s),
 		numX, numY,
-		fixed, true, tex_coords);
+		fixed, false, tex_coords);
+
+
 
 	btSoftBody::Material* pm= cloth->appendMaterial();
 	pm->m_kLST = 0.3;
@@ -237,6 +238,8 @@ void CreatePhysicsCloth(btScalar x, btScalar y)
 	cloth->m_cfg.kDF = 1.0;
 	cloth->m_cfg.kDP = 0.005f;
 
+
+	
 	dynamicsWorld->addSoftBody(cloth);
 }
 
@@ -381,6 +384,8 @@ bool Init()
 
 void UpdateSoftBodyVertices()
 {
+	if (cloth == nullptr)
+		return;
 	/* Each soft body contain an array of vertices (nodes/particles_mass)   */
 	btSoftBody::tNodeArray&   _nodes(cloth->m_nodes);
 
@@ -575,7 +580,7 @@ void KeyDown(unsigned char key, int x, int y)
 	case 'R':
 		g_ClothScalarX = 4;
 		g_ClothScalarY = 4;
-		Init();
+		ResetCloth();
 		break;
 
 	case 'i':
@@ -618,22 +623,22 @@ void KeyDown(unsigned char key, int x, int y)
 		break;
 	case VK_SPACE:
 	{
-		btSoftBody::tNodeArray&   _nodes(cloth->m_nodes);
 
-		btSoftBody::tFaceArray _faces(cloth->m_faces);
-
-		btSoftBody::tJointArray _joints(cloth->m_joints);
-
-		for (int j = 0; j< _joints.size(); ++j)
-		{
-			_joints[j]->m_bodies->m_soft->m_imass = 0.0f;
-		}
 	} 
 		break;
 	default:
 		break;
 	}
 }
+
+void ResetNodeMass()
+{
+	for (int i = 0; i < 20; i++)
+	{
+		cloth->setMass(i, 0.1f);
+	}
+}
+
 void KeyUp(unsigned char key, int x, int y)
 {
 	switch (key)
@@ -662,6 +667,44 @@ void KeyUp(unsigned char key, int x, int y)
 	case 'E':
 		g_Movement.y = 0.f;
 		break;
+
+	case '1':
+	{
+		ResetCloth();
+		cloth->setMass(0, 0.0f);
+		cloth->setMass(19, 0.0f);
+	}
+	break;
+	case '2':
+	{
+		ResetCloth();
+		for (int i = 0; i < 20; i += 5)
+			cloth->setMass(i, 0.0f);
+	}
+	break;
+	case '3':
+	{
+		ResetCloth();
+		for (int i = 0; i < 20; i += 3)
+			cloth->setMass(i, 0.0f);
+	}
+
+	case '4':
+	{
+		ResetCloth();
+		for (int i = 0; i < 20; i += 2)
+			cloth->setMass(i, 0.0f);
+	}
+	break;
+
+	case '5':
+	{
+		ResetCloth();
+		for (int i = 0; i < 20; i++)
+			cloth->setMass(i, 0.0f);
+	}
+	break;
+
 	default:
 		break;
 	}
@@ -733,6 +776,8 @@ struct	ImplicitSphere : btSoftBody::ImplicitFn
 	}
 };
 
+
+btSoftBody::Face* m_faceHit;
 /* btMakeVector3 
 @Author : Cameron Peet
 @Desc   : Take in a glm::vec3 and return a btVector3
@@ -798,15 +843,15 @@ void MouseButton(int button, int state, int x, int y)
 						}
 						case	btSoftBody::eFeature::Face:
 						{
-							btSoftBody::Face&	f = m_results.body->m_faces[m_results.index];
-							m_node = f.m_n[0];
+							m_faceHit = &m_results.body->m_faces[m_results.index];
+							m_node = m_faceHit->m_n[0];
 
 							for (int i = 1; i<3; ++i)
 							{
 								if ((m_node->m_x - m_impact).length2()>
-									(f.m_n[i]->m_x - m_impact).length2())
+									(m_faceHit->m_n[i]->m_x - m_impact).length2())
 								{
-									m_node = f.m_n[i];
+									m_node = m_faceHit->m_n[i];
 								}
 							}
 						}
@@ -822,14 +867,15 @@ void MouseButton(int button, int state, int x, int y)
 		{
 			if ((!m_drag) && m_cutting && (m_results.fraction<1.f))
 			{
-				ImplicitSphere	isphere(m_impact, 1);
-				printf("Mass before: %f\r\n", m_results.body->getTotalMass());
-				m_results.body->releaseClusters();
-				m_results.body->refine(&isphere, 0.0001, true);
-				m_results.body->generateClusters(8);
-				m_results.body->updateClusters();
 
-				printf("Mass after: %f\r\n", m_results.body->getTotalMass());
+				//ImplicitSphere	isphere(m_impact, 1);
+				//printf("Mass before: %f\r\n", m_results.body->getTotalMass());
+				//m_results.body->releaseClusters();
+				//m_results.body->refine(&isphere, 0.0001, true);
+				//m_results.body->generateClusters(8);
+				//m_results.body->updateClusters();
+
+				//printf("Mass after: %f\r\n", m_results.body->getTotalMass());
 			}
 
 			m_results.fraction = 1.f;
@@ -974,15 +1020,17 @@ void pickingPreTickCallback(btDynamicsWorld *world, btScalar timeStep)
 		static const btScalar	maxdrag = 10;
 		if (delta.length2()>(maxdrag*maxdrag))
 		{
-			ImplicitSphere	isphere(m_impact, 1);
-			printf("Mass before: %f\r\n", m_results.body->getTotalMass());
+			//ImplicitSphere	isphere(m_impact, 1);
+			//printf("Mass before: %f\r\n", m_results.body->getTotalMass());
 
-			m_results.body->releaseClusters();
-			m_results.body->refine(&isphere, 0.0001, true);
-			m_results.body->generateClusters(8);
-			m_results.body->updateClusters();
+			//m_results.body->releaseClusters();
+			//m_results.body->refine(&isphere, 0.0001, true);
+			//m_results.body->generateClusters(8);
+			//m_results.body->updateClusters();
 
-			printf("Mass after: %f\r\n", m_results.body->getTotalMass());
+	/*		printf("Mass after: %f\r\n", m_results.body->getTotalMass());*/
+
+
 			m_results.fraction = 1.f;
 			m_drag = false;
 
