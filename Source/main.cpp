@@ -70,6 +70,7 @@ void KeyDown(unsigned char key, int x, int y);
 void KeyUp(unsigned char key, int x, int y);
 void Reshape(int width, int height);
 void ResetCloth();
+void ResetNodeMass();
 void CreatePhysicsCloth(btScalar x, btScalar y);
 void CreatePhysicsWorld();
 void PassiveMotion(int x, int y);
@@ -632,7 +633,7 @@ void KeyDown(unsigned char key, int x, int y)
 		break;
 	case VK_SPACE:
 	{
-
+		ResetNodeMass();
 	} 
 		break;
 	default:
