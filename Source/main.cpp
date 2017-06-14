@@ -73,6 +73,8 @@ void ResetCloth();
 void ResetNodeMass();
 void CreatePhysicsCloth(btScalar x, btScalar y);
 void CreatePhysicsWorld();
+void CreatePhysicsBox();
+void ApplyFanForces();
 void PassiveMotion(int x, int y);
 void MouseButton(int button, int state, int x, int y);
 void MouseMoveWhileClicked(int x, int y);
@@ -133,11 +135,15 @@ btSoftBody* cloth;
 PhysicsBody g_Cloth;
 btRigidBody* box;
 Model g_Box;
+Model g_fanBox;
+btVector3 g_btFanPosition;
 btSoftBodyWorldInfo softBodyWorldInfo;
 
 btScalar g_ClothScalarX = 4;
 btScalar g_ClothScalarY = 4;
 float g_ResizeTimer = 0.0f;
+
+float g_fanSpeed = 0.3f;
 
 
 btRigidBody* createRigidBody(float mass, const btTransform& startTransform, btCollisionShape* shape, const btVector4& color = btVector4(1, 0, 0, 1))
@@ -378,6 +384,12 @@ bool Init()
 	g_Box.m_Position = glm::vec3(0, 1, 0);
 	g_Box.ObjectColor = glm::vec3(1.0f, 1.0f, 1.0f);
 
+	g_fanBox = Model(CUBE, "assets/textures/ball.jpg", false);
+	g_fanBox.Initialise();
+	g_fanBox.m_Position = glm::vec3(0, 3, -2);
+	g_fanBox.ObjectColor = glm::vec3(1.0f, 1.0f, 1.0f);
+	g_fanBox.m_Scale = glm::vec3(0.2f, 0.2f, 0.2f);
+
 	DefineUniformBufferObjects();
 	BindUBO();
 	return true;
@@ -512,6 +524,8 @@ void Render()
 	BindUBO();
 	g_SkyBox.Render(skyboxShader, g_Camera);
 
+	g_fanBox.Render(standardShader, g_Camera);
+
 	UpdateSoftBodyVertices();
 	g_Cloth.Render(standardShader, g_Camera);
 
@@ -521,6 +535,7 @@ void Render()
 
 	g_Box.modelMatrix = glm::make_mat4x4(ModelMatrix);
 	g_Box.Render(standardShader, g_Camera);
+
 	//g_Sphere.Render(standardShader, g_Camera);
 	//RenderOld();
 
@@ -536,6 +551,7 @@ void Update()
 
 	//Physics Update Stuff
 
+
 	//If dragging a body / soft body
 	if(g_MouseInfo.mouseDown)
 		pickingPreTickCallback(dynamicsWorld, fDeltaTime);
@@ -547,12 +563,42 @@ void Update()
 
 	g_PreviousTicks = g_CurrentTicks;
 
+	g_btFanPosition = btVector3(g_fanBox.m_Position.x, g_fanBox.m_Position.y, g_fanBox.m_Position.z);
+	ApplyFanForces();
+	
 	glUseProgram(0);
 	g_Camera.Translate(g_Movement * 10.0f * fDeltaTime);
 	g_WindowRunning = true;
 	Sleep(10);
 	glutPostRedisplay();
 }
+
+void ApplyFanForces()
+{
+	btSoftBody::tNodeArray&   _nodes(cloth->m_nodes);
+
+	for (int j = 0; j< _nodes.size() / 2; ++j)
+	{
+		// Reset force
+	//	_nodes[j].m_f = btVector3(0, 0, 0);
+		
+		btVector3 nodeToFan = _nodes[j].m_x - g_btFanPosition;
+
+		// Convert from btVector3 to glm::vec3
+		glm::vec3 NodeToFan = glm::vec3(nodeToFan.m_floats[0], nodeToFan.m_floats[1], nodeToFan.m_floats[2]);
+		glm::vec3 nodeNormal = glm::vec3(_nodes[j].m_n.m_floats[0], _nodes[j].m_n.m_floats[1], _nodes[j].m_n.m_floats[2]);
+
+		float dotProduct = glm::dot(NodeToFan, nodeNormal);
+
+		if (dotProduct == 0)
+			dotProduct = 0.0001f;
+
+		// Apply force based on dot product
+		_nodes[j].m_f = btVector3(1, 1, 1) * 0.2 / dotProduct;
+	//	_nodes[j].m_f = -nodeToFan * (0.01f / dotProduct);
+	}
+}
+
 void KeyDown(unsigned char key, int x, int y)
 {
 	switch (key)
@@ -586,8 +632,8 @@ void KeyDown(unsigned char key, int x, int y)
 		glutLeaveMainLoop();
 		break;
 
-	case 'r':
-	case 'R':
+	case 'z':
+	case 'Z':
 		g_ClothScalarX = 4;
 		g_ClothScalarY = 4;
 		ResetCloth();
@@ -636,6 +682,31 @@ void KeyDown(unsigned char key, int x, int y)
 		ResetNodeMass();
 	} 
 		break;
+	case 't':
+	case 'T':
+		g_fanBox.m_Position += glm::vec3(0.0f, 0.0f, 1.0f) * g_fanSpeed;
+		break;
+	case 'f':
+	case 'F':
+		g_fanBox.m_Position += glm::vec3(1.0f, 0.0f, 0.0f) * g_fanSpeed;
+		break;
+	case 'g':
+	case 'G':
+		g_fanBox.m_Position -= glm::vec3(0.0f, 0.0f, 1.0f) * g_fanSpeed;
+		break;
+	case 'h':
+	case 'H':
+		g_fanBox.m_Position -= glm::vec3(1.0f, 0.0f, 0.0f) * g_fanSpeed;
+		break;
+	case 'y':
+	case 'Y':
+		g_fanBox.m_Position += glm::vec3(0.0f, 1.0f, 0.0f) * g_fanSpeed;
+		break;
+	case 'r':
+	case 'R':
+		g_fanBox.m_Position -= glm::vec3(0.0f, 1.0f, 0.0f) * g_fanSpeed;
+		break;
+
 	default:
 		break;
 	}
