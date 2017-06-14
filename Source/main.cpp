@@ -722,6 +722,8 @@ void ResetNodeMass()
 
 void KeyUp(unsigned char key, int x, int y)
 {
+	btSoftBody::tNodeArray& _nodes(cloth->m_nodes);
+
 	switch (key)
 	{
 	case 'w':
@@ -785,6 +787,30 @@ void KeyUp(unsigned char key, int x, int y)
 			cloth->setMass(i, 0.0f);
 	}
 	break;
+
+	//case '6':
+	//{
+	//	for (int i = 0; i < 20; i++)
+	//	{
+	//		if ((cloth->getMass(i)) < 0.09f)
+	//		{
+	//			_nodes[i].m_x += btVector3(((10 - i) / 10), 0, 0);
+	//		}
+	//	}			
+	//}
+	//break;
+
+	//case '7':
+	//{
+	//	for (int j = 0; j < 20; j++)
+	//	{
+	//		if ((cloth->getMass(j)) < 0.09f)
+	//		{
+	//			_nodes[j].m_x -= btVector3(((10 - j) / 10), 0, 0);
+	//		}
+	//	}
+	//}
+	//break;
 
 	default:
 		break;
