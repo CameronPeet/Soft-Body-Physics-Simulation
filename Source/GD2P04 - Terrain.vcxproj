@@ -38,6 +38,8 @@
     <None Include="assets\shaders\Shader.vert" />
     <None Include="assets\shaders\skybox.frag" />
     <None Include="assets\shaders\skybox.vs" />
+    <None Include="assets\shaders\text.frag" />
+    <None Include="assets\shaders\text.vert" />
     <None Include="Physics\Cloth.frag" />
     <None Include="Physics\Cloth.vert" />
   </ItemGroup>
@@ -48,6 +50,7 @@
     <ClCompile Include="Graphics\Model.cpp" />
     <ClCompile Include="Graphics\ObjModel.cpp" />
     <ClCompile Include="Graphics\Terrain.cpp" />
+    <ClCompile Include="Graphics\TextLabel.cpp" />
     <ClCompile Include="Graphics\Utils.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="Physics\BulletMain.cpp" />
@@ -65,6 +68,7 @@
     <ClInclude Include="Graphics\ObjModel.h" />
     <ClInclude Include="Graphics\SkyBox.h" />
     <ClInclude Include="Graphics\Terrain.h" />
+    <ClInclude Include="Graphics\TextLabel.h" />
     <ClInclude Include="Graphics\Utils.h" />
     <ClInclude Include="Physics\CDebugDraw.h" />
     <ClInclude Include="Physics\PhysicsWorld.h" />
@@ -144,11 +148,11 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>Graphics;Utility;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)Utility;$(ProjectDir)Graphics;$(SolutionDir)Dependencies\include\;$(SolutionDir)Dependencies\include\freetype;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>opengl32.lib;freeglut.lib;glew32.lib;SOIL.lib;assimp.lib;BulletDynamics.lib;BulletCollision.lib;LinearMath.lib;BulletSoftBody.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>opengl32.lib;freeglut.lib;glew32.lib;SOIL.lib;assimp.lib;freetype.lib;BulletDynamics.lib;BulletCollision.lib;LinearMath.lib;BulletSoftBody.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -170,11 +174,12 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <AdditionalIncludeDirectories>$(ProjectDir)Utility;$(ProjectDir)Graphics;$(SolutionDir)Dependencies\include\;$(SolutionDir)Dependencies\include\freetype;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>opengl32.lib;freeglut.lib;glew32.lib;SOIL.lib;assimp.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>opengl32.lib;freeglut.lib;glew32.lib;SOIL.lib;assimp.lib;freetype.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">

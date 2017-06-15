@@ -14,16 +14,6 @@
 #include <ctime>
 #include <iostream>
 
-//Library Includes
-#include <glew\glew.h>
-#include <freeglut\freeglut.h>
-#include <soil\SOIL.h>
-
-
-//GL Math Includes
-#include <glm\glm.hpp>
-#include <glm\gtc\matrix_transform.hpp>
-#include <glm\gtc\type_ptr.hpp>
 
 //Local Includes
 #include "Utility\ShaderLoader.h"
@@ -38,6 +28,8 @@
 
 #include "Cloth.h"
 
+#include "TextLabel.h"
+
 struct MouseInfo
 {
 	//FPS movement
@@ -47,6 +39,7 @@ struct MouseInfo
 	float pitch = 0.0f;
 	float yaw = 90.0f;
 	bool firstMouse = true;
+	bool lock = true;
 
 	//used for physics
 
@@ -55,6 +48,13 @@ struct MouseInfo
 	float mouseX, mouseY;
 	bool mouseDown = false;
 };
+
+
+std::vector<TextLabel*> m_pCurrentMenu;
+TextLabel* m_tHooks;
+TextLabel* m_tReset;
+
+int hooks = 2;
 
 MouseInfo g_MouseInfo;
 
@@ -196,7 +196,19 @@ void CreatePhysicsWorld()
 	softBodyWorldInfo.m_gravity = dynamicsWorld->getGravity();
 	softBodyWorldInfo.m_sparsesdf.Initialize();
 
+	btCollisionShape* groundShape = new btStaticPlaneShape(btVector3(0, 1, 0), 1);
+	btDefaultMotionState* groundMotionState =
+		new btDefaultMotionState(btTransform(btQuaternion(0, 0, 0, 1), btVector3(0, -1, 0)));
+
+	btRigidBody::btRigidBodyConstructionInfo
+	groundRigidBodyCI(0, groundMotionState, groundShape, btVector3(0, 0, 0));
+	btRigidBody* groundRigidBody = new btRigidBody(groundRigidBodyCI);
+
+	dynamicsWorld->addRigidBody(groundRigidBody);
 }
+
+const int numX = 20;
+const int numY = 20;
 
 void CreatePhysicsCloth(btScalar x, btScalar y)
 {
@@ -204,8 +216,7 @@ void CreatePhysicsCloth(btScalar x, btScalar y)
 
 	std::cout << "x = " << x << ", y = " << y << ", s = " << s << endl;
 
-	const int numX = 20;
-	const int numY = 20;
+
 
 	const int fixed = 1 + 2;
 
@@ -218,31 +229,31 @@ void CreatePhysicsCloth(btScalar x, btScalar y)
 		btVector3(-x / 2, s - y + 1, +s),
 		btVector3(+x / 2, s - y + 1, +s),
 		numX, numY,
-		fixed, false, tex_coords);
+		fixed, true, tex_coords);
 
 
 
 	btSoftBody::Material* pm= cloth->appendMaterial();
-	pm->m_kLST = 0.3;
-	pm->m_kAST = 0.2;
-	pm->m_kVST = 0.5;
+	pm->m_kLST = 0.0f;
+	pm->m_kAST = 0.0f;
+	pm->m_kVST = 0.0f;
 
 	cloth->getCollisionShape()->setMargin(0.01f);
 
-	cloth->generateBendingConstraints(2, pm);
+	cloth->generateBendingConstraints(6, pm);
 
-	cloth->m_cfg.citerations = 10;
-	cloth->m_cfg.diterations = 10;
+	cloth->m_cfg.citerations = 5;
+	cloth->m_cfg.diterations = 5;
 
-	cloth->m_cfg.piterations = 7;
+	cloth->m_cfg.piterations = 5;
 
 	cloth->m_cfg.collisions = btSoftBody::fCollision::SDF_RS+btSoftBody::fCollision::CL_SS + btSoftBody::fCollision::CL_SELF;
 	
 	cloth->setTotalMass(10);
 	
-	cloth->generateClusters(8);
+	//cloth->generateClusters(8);
 
-	cloth->m_cfg.kDF = 1.0;
+	cloth->m_cfg.kDF = 0.8f;
 	cloth->m_cfg.kDP = 0.005f;
 
 
@@ -390,6 +401,32 @@ bool Init()
 	g_fanBox.ObjectColor = glm::vec3(1.0f, 1.0f, 1.0f);
 	g_fanBox.m_Scale = glm::vec3(0.2f, 0.2f, 0.2f);
 
+
+	m_tHooks = (new TextLabel("Hooks : 5", "Assets/Fonts/waltographUI.ttf"));
+	m_tHooks->setColor(glm::vec3(1.0f, 1.0f, 1.0f));
+	m_tHooks->setPosition(glm::vec3(0.0f, 100.0f, 0.0f));
+	m_tHooks->setScale(0.5f);
+	
+	TextLabel* pText = new TextLabel("UNLOCK MOUSE : SPACE_BAR ", "Assets/Fonts/waltographUI.ttf");
+	pText->setColor(glm::vec3(1.0f, 1.0f, 0.0f));
+	pText->setPosition(glm::vec3(0.0f, 00.0f, 0.0f));
+	pText->setScale(0.75f);
+	m_pCurrentMenu.push_back(pText);
+
+	pText = new TextLabel("Release Hooks", "Assets/Fonts/waltographUI.ttf");
+	pText->setColor(glm::vec3(1.0f, 1.0f, 0.0f));
+	pText->setPosition(glm::vec3(0.0f, 200.0f, 0.0f));
+	pText->setScale(0.5f);
+	m_pCurrentMenu.push_back(pText);
+
+	pText = new TextLabel("Fan : Off", "Assets/Fonts/waltographUI.ttf");
+	pText->setColor(glm::vec3(1.0f, 1.0f, 0.0f));
+	pText->setPosition(glm::vec3(0.0f, 300.0f, 0.0f));
+	pText->setScale(0.5f);
+	m_pCurrentMenu.push_back(pText);
+
+	m_pCurrentMenu.push_back(m_tHooks);
+
 	DefineUniformBufferObjects();
 	BindUBO();
 	return true;
@@ -426,7 +463,6 @@ void UpdateSoftBodyVertices()
 
 		v.pos = glm::vec3(p[0], p[1], p[2]);
 		v.n = glm::vec3(n[0], n[1], n[2]);
-
 
 		g_Cloth.vertices.push_back(v);
 	}
@@ -468,7 +504,6 @@ void UpdateSoftBodyVertices()
 		g_Cloth.vertices.push_back(v0);
 		g_Cloth.vertices.push_back(v1);
 
-		tex += 4;
 	}
 
 	/* And faces							*/
@@ -502,6 +537,7 @@ void UpdateSoftBodyVertices()
 		v2.n = glm::vec3(n3[0], n3[1], n3[2]);
 		v2.uv = glm::vec2(tex_coords[tex + 4], tex_coords[tex + 5]);
 
+
 		g_Cloth.vertices.push_back(v);
 		g_Cloth.vertices.push_back(v1);
 		g_Cloth.vertices.push_back(v2);
@@ -512,6 +548,7 @@ void UpdateSoftBodyVertices()
 
 		tex += 6;
 	}
+
 }
 
 
@@ -526,7 +563,9 @@ void Render()
 
 	g_fanBox.Render(standardShader, g_Camera);
 
-	UpdateSoftBodyVertices();
+	if(cloth != nullptr)
+		UpdateSoftBodyVertices();
+
 	g_Cloth.Render(standardShader, g_Camera);
 
 	btTransform t = box->getWorldTransform();
@@ -536,12 +575,21 @@ void Render()
 	g_Box.modelMatrix = glm::make_mat4x4(ModelMatrix);
 	g_Box.Render(standardShader, g_Camera);
 
+	for (auto itr : m_pCurrentMenu)
+	{
+		itr->Render(g_Camera);
+	}
+
 	//g_Sphere.Render(standardShader, g_Camera);
 	//RenderOld();
 
 	glBindVertexArray(0);
 	glutSwapBuffers();
 }
+
+int MoveHinge = 0 ;
+
+
 void Update()
 {
 	g_CurrentTicks = std::clock();
@@ -556,6 +604,31 @@ void Update()
 	if(g_MouseInfo.mouseDown)
 		pickingPreTickCallback(dynamicsWorld, fDeltaTime);
 
+
+	if (MoveHinge != 0)
+	{
+		btSoftBody::tNodeArray& _nodes(cloth->m_nodes);
+
+		//Get node
+		for (int i = 0; i < numX; i++)
+		{
+			if ((cloth->getMass(i)) <= 0.09f)
+			{
+				//Get distance
+				float distance = 0.0f;
+				btVector3 a = _nodes[i].m_x;
+				btVector3 b = _nodes[19].m_x;
+
+				distance = (a - b).length() * MoveHinge;
+				if (i == 0)
+				{
+					cout << distance << endl;
+				}
+				_nodes[i].m_v = btVector3(distance, 0, 0) * fDeltaTime;
+			}
+		}
+	}
+
 	//World Simulation
 	dynamicsWorld->stepSimulation(fDeltaTime);
 
@@ -564,7 +637,7 @@ void Update()
 	g_PreviousTicks = g_CurrentTicks;
 
 	g_btFanPosition = btVector3(g_fanBox.m_Position.x, g_fanBox.m_Position.y, g_fanBox.m_Position.z);
-	ApplyFanForces();
+	//ApplyFanForces();
 	
 	glUseProgram(0);
 	g_Camera.Translate(g_Movement * 10.0f * fDeltaTime);
@@ -679,7 +752,8 @@ void KeyDown(unsigned char key, int x, int y)
 		break;
 	case VK_SPACE:
 	{
-		ResetNodeMass();
+		g_MouseInfo.lock = !g_MouseInfo.lock;
+//		ResetNodeMass();
 	} 
 		break;
 	case 't':
@@ -707,6 +781,12 @@ void KeyDown(unsigned char key, int x, int y)
 		g_fanBox.m_Position -= glm::vec3(0.0f, 1.0f, 0.0f) * g_fanSpeed;
 		break;
 
+	case '7':
+		MoveHinge = -1;
+		break;
+	case '6':
+		MoveHinge = 1;
+		break;
 	default:
 		break;
 	}
@@ -714,11 +794,13 @@ void KeyDown(unsigned char key, int x, int y)
 
 void ResetNodeMass()
 {
-	for (int i = 0; i < 20; i++)
+	for (int i = 0; i < numX; i++)
 	{
 		cloth->setMass(i, 0.1f);
 	}
 }
+
+
 
 void KeyUp(unsigned char key, int x, int y)
 {
@@ -761,21 +843,22 @@ void KeyUp(unsigned char key, int x, int y)
 	case '2':
 	{
 		ResetCloth();
-		for (int i = 0; i < 20; i += 5)
+		for (int i = 0; i < numX; i += 5)
 			cloth->setMass(i, 0.0f);
 	}
 	break;
 	case '3':
 	{
 		ResetCloth();
-		for (int i = 0; i < 20; i += 3)
+		for (int i = 0; i < numX; i += 3)
 			cloth->setMass(i, 0.0f);
 	}
+	break;
 
 	case '4':
 	{
 		ResetCloth();
-		for (int i = 0; i < 20; i += 2)
+		for (int i = 0; i < numX; i += 2)
 			cloth->setMass(i, 0.0f);
 	}
 	break;
@@ -783,34 +866,19 @@ void KeyUp(unsigned char key, int x, int y)
 	case '5':
 	{
 		ResetCloth();
-		for (int i = 0; i < 20; i++)
+		for (int i = 0; i < numX; i++)
 			cloth->setMass(i, 0.0f);
 	}
 	break;
 
-	//case '6':
-	//{
-	//	for (int i = 0; i < 20; i++)
-	//	{
-	//		if ((cloth->getMass(i)) < 0.09f)
-	//		{
-	//			_nodes[i].m_x += btVector3(((10 - i) / 10), 0, 0);
-	//		}
-	//	}			
-	//}
-	//break;
+	case '6':
+	case '7':
+		MoveHinge = 0;
+	break;
 
-	//case '7':
-	//{
-	//	for (int j = 0; j < 20; j++)
-	//	{
-	//		if ((cloth->getMass(j)) < 0.09f)
-	//		{
-	//			_nodes[j].m_x -= btVector3(((10 - j) / 10), 0, 0);
-	//		}
-	//	}
-	//}
-	//break;
+	case '8':
+	{
+	} break;
 
 	default:
 		break;
@@ -853,6 +921,8 @@ void ResetCloth()
 
 void ResetPointer()
 {
+	if (!g_MouseInfo.lock)
+		return;
 	glutWarpPointer(600, 400);
 	g_MouseInfo.lastX = 600.0f;
 	g_MouseInfo.lastY = 400.0f;
@@ -911,12 +981,65 @@ btVector3 btMakeVector3(const glm::vec3& _kr)
 
 void MouseButton(int button, int state, int x, int y)
 {
+	//Dp Nothing
+	int yOld = y;
+	y = glutGet(GLUT_WINDOW_HEIGHT) - y;
+
+	if (button == GLUT_LEFT_BUTTON)
+	{
+		if (state == GLUT_DOWN)
+		{
+			for (auto itr : m_pCurrentMenu)
+			{
+				if (itr->isActive() && itr->isButton())
+				{
+
+					if (x > itr->position.x && x < itr->position.x + itr->width && y > itr->position.y && y < itr->position.y + itr->height)
+					{
+						std::string text = itr->getText();
+						if (text.length() >= 5)
+						{
+							std::string sub = text.substr(0, 5);
+							if (sub == "Hooks")
+							{
+								if (hooks == 2)
+									hooks = 3;
+								else if (hooks == 3)
+									hooks = 5;
+								else if (hooks == 5)
+									hooks = 19;
+								else if (hooks == 19)
+									hooks = 2;
+								ResetCloth();
+								for (int i = 0; i < numX; i += hooks)
+									cloth->setMass(i, 0.0f);
+							}
+						}
+
+
+						if (text.length() >= 7)
+						{
+							std::string sub = text.substr(0, 7);
+							if (sub == "Release")
+							{
+								ResetNodeMass();
+							}
+						}
+
+						itr->setHighlighted(false);
+						break;
+					}
+				}
+			}
+		}
+	}
+	y = yOld;
+
 	if (button == GLUT_LEFT_BUTTON)
 	{
 		if (state == GLUT_DOWN)
 		{
 			g_MouseInfo.mouseDown = true;
-			
 			btVector3 rayFrom = btMakeVector3(g_Camera.GetPosition());
 			btVector3 rayTo = btMakeVector3(g_Camera.GetRayTo(x, y, 100.0f));
 
@@ -990,18 +1113,13 @@ void MouseButton(int button, int state, int x, int y)
 			if ((!m_drag) && m_cutting && (m_results.fraction<1.f))
 			{
 
+				//dy, -dx).
+				float dx = g_MouseInfo.mouseX - g_MouseInfo.lastX;
+				float dy = g_MouseInfo.mouseY - g_MouseInfo.lastY;
 
-				ImplicitSphere	isphere(m_impact, 1);
-				ImplicitPlane plane(m_impact, btVector3(0, 0, 1));
-				//printf("Mass before: %f\r\n", m_results.body->getTotalMass());
-				m_results.body->releaseClusters();
-				m_results.body->refine(&plane, 0.0001, true);
-				m_results.body->generateClusters(8);
-				m_results.body->updateClusters();
+				ImplicitPlane plane(m_impact, btVector3(0, 1, 0));
+				cloth->refine(&plane, 1, true);
 
-
-
-				//printf("Mass after: %f\r\n", m_results.body->getTotalMass());
 			}
 
 			m_results.fraction = 1.f;
@@ -1037,10 +1155,38 @@ void MouseMoveWhileClicked(int x, int y)
 
 void PassiveMotion(int x, int y)
 {
+
+	int yOld = y;
+	y = glutGet(GLUT_WINDOW_HEIGHT) - y;
+
+	for (auto itr : m_pCurrentMenu)
+	{
+		if (itr->isActive() && itr->isButton())
+		{
+			if (x > itr->position.x && x < itr->position.x + itr->width && y > itr->position.y && y < itr->position.y + itr->height)
+			{
+				itr->setHighlighted(true);
+				itr->setHighlight(glm::vec3(0, 0, 1));
+			}
+			else
+			{
+				if (itr->isHighlighted())
+				{
+					itr->setHighlighted(false);
+				}
+			}
+		}
+	}
+
 	if (g_MouseInfo.mouseDown)
 	{
+		g_MouseInfo.mouseX = x;
+		g_MouseInfo.mouseY = y;
 		return;
 	}
+
+	if (!g_MouseInfo.lock)
+		return;
 	static bool sJustWarped = false;
 
 	if (sJustWarped) {
@@ -1048,6 +1194,7 @@ void PassiveMotion(int x, int y)
 		return;
 	}
 
+	y = yOld;
 	GLfloat xoffset = x - g_MouseInfo.lastX;
 	GLfloat yoffset = g_MouseInfo.lastY - y;
 
@@ -1143,16 +1290,11 @@ void pickingPreTickCallback(btDynamicsWorld *world, btScalar timeStep)
 		//else
 		// Apply force towards the m_goal position
 		btVector3				delta = m_goal - m_node->m_x;
-		static const btScalar	maxdrag = 10;
+		static const btScalar	maxdrag = 5;
 		if (delta.length2()>(maxdrag*maxdrag))
 		{
-			//ImplicitSphere	isphere(m_impact, 1);
-			//printf("Mass before: %f\r\n", m_results.body->getTotalMass());
-
-			//m_results.body->releaseClusters();
-			//m_results.body->refine(&isphere, 0.0001, true);
-			//m_results.body->generateClusters(8);
-			//m_results.body->updateClusters();
+			ImplicitPlane plane(m_impact, btVector3(0, 0, 1));
+			m_results.body->refine(&plane, 0.5f, true);
 
 	/*		printf("Mass after: %f\r\n", m_results.body->getTotalMass());*/
 

@@ -55,6 +55,8 @@
       <Filter>Shaders</Filter>
     </None>
     <None Include="Physics\Cloth.frag" />
+    <None Include="assets\shaders\text.vert" />
+    <None Include="assets\shaders\text.frag" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Utility\ShaderLoader.h">
@@ -82,6 +84,7 @@
     <ClInclude Include="Physics\PhysicsWorld.h" />
     <ClInclude Include="Physics\CDebugDraw.h" />
     <ClInclude Include="Cloth.h" />
+    <ClInclude Include="Graphics\TextLabel.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Utility\ShaderLoader.cpp">
@@ -104,6 +107,7 @@
     <ClCompile Include="Physics\CDebugDraw.cpp" />
     <ClCompile Include="Physics\PhysicsWorld.cpp" />
     <ClCompile Include="Cloth.cpp" />
+    <ClCompile Include="Graphics\TextLabel.cpp" />
   </ItemGroup>
   <ItemGroup>
     <Text Include="BU.txt" />
