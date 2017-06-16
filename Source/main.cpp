@@ -268,9 +268,7 @@ void CreatePhysicsCloth(btScalar x, btScalar y)
 {
 	const btScalar s = 4;
 
-	std::cout << "x = " << x << ", y = " << y << ", s = " << s << endl;
-
-
+	// std::cout << "x = " << x << ", y = " << y << ", s = " << s << endl;
 
 	const int fixed = 1 + 2;
 
@@ -305,7 +303,7 @@ void CreatePhysicsCloth(btScalar x, btScalar y)
 	
 	cloth->setTotalMass(30);
 	
-	cloth->generateClusters(1);
+	//cloth->generateClusters(8);
 
 	cloth->m_cfg.kDF = 0.8f;
 	cloth->m_cfg.kDP = 0.005f;
@@ -507,7 +505,7 @@ bool Init()
 	pText->setScale(0.5f);
 	m_pCurrentMenu.push_back(pText);
 
-	pText = new TextLabel("Reset Sim", "Assets/Fonts/waltographUI.ttf");
+	pText = new TextLabel("Reset Scene", "Assets/Fonts/waltographUI.ttf");
 	pText->setColor(glm::vec3(1.0f, 1.0f, 0.0f));
 	pText->setPosition(glm::vec3(0.0f, 400.0f, 0.0f));
 	pText->setScale(0.5f);
@@ -525,13 +523,13 @@ bool Init()
 	pText->setScale(0.5f);
 	m_pCurrentMenu.push_back(pText);
 
-	pText = new TextLabel("Cloth Size : Use IJKL", "Assets/Fonts/waltographUI.ttf");
+	pText = new TextLabel("Cloth Size : Use I,J,K,L", "Assets/Fonts/waltographUI.ttf");
 	pText->setColor(glm::vec3(1.0f, 1.0f, 0.0f));
 	pText->setPosition(glm::vec3(0.0f, 550, 0.0f));
 	pText->setScale(0.5f);
 	m_pCurrentMenu.push_back(pText);
 
-	pText = new TextLabel("Move WindBox : Use TFGH", "Assets/Fonts/waltographUI.ttf");
+	pText = new TextLabel("Move Fan Box : Use T,F,G,H,R,Y", "Assets/Fonts/waltographUI.ttf");
 	pText->setColor(glm::vec3(1.0f, 1.0f, 0.0f));
 	pText->setPosition(glm::vec3(0.0f, 600, 0.0f));
 	pText->setScale(0.5f);
@@ -777,6 +775,7 @@ void Update()
 			float dy = g_MouseInfo.mouseY - g_MouseInfo.lastY;
 
 			ImplicitPlane plane(m_impact, btVector3(0, 1, 0));
+			
 			cloth->refine(&plane, 0.5f, true);
 
 			Cut++;
@@ -818,7 +817,7 @@ void ApplyFanForces()
 	for (int j = 0; j< _nodes.size(); ++j)
 	{
 		// Reset force
-	//	_nodes[j].m_f = btVector3(0, 0, 0);
+		_nodes[j].m_f = btVector3(0, 0, 0);
 		
 		btVector3 nodeToFan = _nodes[j].m_x - g_btFanPosition;
 
@@ -833,8 +832,11 @@ void ApplyFanForces()
 		if (dotProduct == 0)
 			dotProduct = 0.0001f;
 
-		// Apply force based on dot product
-		_nodes[j].m_f = nodeToFan / (scalar * 30);
+		if (scalar < 5.0f)
+		{
+			//Apply force in the direction away from the fan, based on the distance scalar
+			_nodes[j].m_f = nodeToFan.normalize() / (scalar * 2);
+		}
 	//	_nodes[j].m_f = -nodeToFan * (0.01f / dotProduct);
 	//	_nodes[j].m_f = btVector3(0, 0, -nodeToFan.m_floats[2]) * 0.1 / dotProduct;
 	//	_nodes[j].m_f = btVector3(1,1,1) * 0.1 / dotProduct;
@@ -1456,7 +1458,8 @@ void pickingPreTickCallback(btDynamicsWorld *world, btScalar timeStep)
 		if (delta.length2()>(maxdrag*maxdrag))
 		{
 			ImplicitPlane plane(m_impact, btVector3(0, 0, 1));
-			m_results.body->refine(&plane, 0.5f, true);
+			cloth->refine(&plane, 0.5f, true);
+
 
 	/*		printf("Mass after: %f\r\n", m_results.body->getTotalMass());*/
 
