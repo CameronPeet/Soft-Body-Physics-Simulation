@@ -364,8 +364,8 @@ void PhysicsBody::Render(GLuint program, Camera& camera, Light* lightSource)
 	glUniform1i(glGetUniformLocation(program, "Texture"), 0);
 
 	glPointSize(5.f);
-	glDrawElements(GL_POINTS, static_cast<GLsizei>(indices.size()), GL_UNSIGNED_INT, 0);
-	glDrawElements(GL_LINES, static_cast<GLsizei>(indices.size()), GL_UNSIGNED_INT, 0);
+	//glDrawElements(GL_POINTS, static_cast<GLsizei>(indices.size()), GL_UNSIGNED_INT, 0);
+	//glDrawElements(GL_LINES, static_cast<GLsizei>(indices.size()), GL_UNSIGNED_INT, 0);
 
 
 	glBindVertexArray(0);
