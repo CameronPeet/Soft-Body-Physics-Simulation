@@ -77,6 +77,7 @@ void ResetNodeMass();
 void CreatePhysicsCloth(btScalar x, btScalar y);
 void CreatePhysicsWorld();
 void CreatePhysicsBox();
+void CreatePhysicsSphere();
 void ApplyFanForces();
 void PassiveMotion(int x, int y);
 void MouseButton(int button, int state, int x, int y);
@@ -139,6 +140,8 @@ PhysicsBody g_Cloth;
 btRigidBody* box;
 Model g_Box;
 Model g_fanBox;
+btRigidBody* sphere;
+Model g_sphere;
 btVector3 g_btFanPosition;
 btSoftBodyWorldInfo softBodyWorldInfo;
 
@@ -209,6 +212,7 @@ void CreatePhysicsWorld()
 	btRigidBody* groundRigidBody = new btRigidBody(groundRigidBodyCI);
 
 	dynamicsWorld->addRigidBody(groundRigidBody);
+
 }
 
 const int numX = 20;
@@ -279,6 +283,21 @@ void CreatePhysicsBox()
 	box = createRigidBody(btScalar(0.), groundTransform, groundShape);
 }
 
+void CreatePhysicsSphere()
+{
+	btSphereShape* groundShape = new btSphereShape(btScalar(0.6f));
+	btTransform groundTransform;
+	groundTransform.setIdentity();
+
+	glm::mat4 transform;
+	transform = glm::translate(transform, glm::vec3(0, 3, 0));
+
+	groundTransform.setFromOpenGLMatrix(glm::value_ptr(transform));
+
+	sphere = createRigidBody(btScalar(0.), groundTransform, groundShape);
+}
+
+
 //What are your start up options
 int main(int argc, char ** argv)
 {
@@ -333,7 +352,7 @@ bool Init()
 
 	CreatePhysicsCloth(g_ClothScalarX, g_ClothScalarY);
 	CreatePhysicsBox();
-
+	CreatePhysicsSphere();
 
 	//Load and create shader files
 	standardShader = shaderLoader.CreateProgram(
@@ -398,6 +417,13 @@ bool Init()
 	g_Box.Initialise();
 	g_Box.m_Position = glm::vec3(0, 1, 0);
 	g_Box.ObjectColor = glm::vec3(1.0f, 1.0f, 1.0f);
+
+	g_sphere = Model(SPHERE, "assets/textures/ball.jpg", false);
+	g_sphere.Initialise();
+	g_sphere.m_Position = glm::vec3(0, 3, 0);
+	g_sphere.ObjectColor = glm::vec3(1.0f, 1.0f, 1.0f);
+	g_sphere.m_Scale = glm::vec3(0.5f, 0.5f, 0.5f);
+
 
 	g_fanBox = Model(CUBE, "assets/textures/ball.jpg", false);
 	g_fanBox.Initialise();
@@ -603,12 +629,22 @@ void Render()
 
 	g_Cloth.Render(standardShader, g_Camera);
 
+
 	btTransform t = box->getWorldTransform();
 	GLfloat* ModelMatrix = new GLfloat[16];
 	t.getOpenGLMatrix(ModelMatrix);
 
 	g_Box.modelMatrix = glm::make_mat4x4(ModelMatrix);
 	g_Box.Render(standardShader, g_Camera);
+
+
+	btTransform s = sphere->getWorldTransform();
+	GLfloat* ModelMatrix2 = new GLfloat[16];
+	s.getOpenGLMatrix(ModelMatrix);
+
+	g_sphere.modelMatrix = glm::make_mat4x4(ModelMatrix2);
+	g_sphere.Render(standardShader, g_Camera);
+
 
 	for (auto itr : m_pCurrentMenu)
 	{
