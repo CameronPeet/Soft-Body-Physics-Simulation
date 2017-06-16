@@ -55,6 +55,9 @@ TextLabel* m_tHooks;
 TextLabel* m_tReset;
 
 int hooks = 2;
+bool FanOn = true;
+bool Close = false;
+bool Open = false;
 
 MouseInfo g_MouseInfo;
 
@@ -197,6 +200,7 @@ void CreatePhysicsWorld()
 	softBodyWorldInfo.m_sparsesdf.Initialize();
 
 	btCollisionShape* groundShape = new btStaticPlaneShape(btVector3(0, 1, 0), 1);
+	groundShape->setLocalScaling(btVector3(10.0f, 1, 10.0f));
 	btDefaultMotionState* groundMotionState =
 		new btDefaultMotionState(btTransform(btQuaternion(0, 0, 0, 1), btVector3(0, -1, 0)));
 
@@ -240,7 +244,7 @@ void CreatePhysicsCloth(btScalar x, btScalar y)
 
 	cloth->getCollisionShape()->setMargin(0.01f);
 
-	cloth->generateBendingConstraints(6, pm);
+	cloth->generateBendingConstraints(1, pm);
 
 	cloth->m_cfg.citerations = 5;
 	cloth->m_cfg.diterations = 5;
@@ -251,7 +255,7 @@ void CreatePhysicsCloth(btScalar x, btScalar y)
 	
 	cloth->setTotalMass(10);
 	
-	//cloth->generateClusters(8);
+	//cloth->generateClusters(4);
 
 	cloth->m_cfg.kDF = 0.8f;
 	cloth->m_cfg.kDP = 0.005f;
@@ -402,7 +406,7 @@ bool Init()
 	g_fanBox.m_Scale = glm::vec3(0.2f, 0.2f, 0.2f);
 
 
-	m_tHooks = (new TextLabel("Hooks : 5", "Assets/Fonts/waltographUI.ttf"));
+	m_tHooks = (new TextLabel("Hooks : Click to Change", "Assets/Fonts/waltographUI.ttf"));
 	m_tHooks->setColor(glm::vec3(1.0f, 1.0f, 1.0f));
 	m_tHooks->setPosition(glm::vec3(0.0f, 100.0f, 0.0f));
 	m_tHooks->setScale(0.5f);
@@ -419,11 +423,42 @@ bool Init()
 	pText->setScale(0.5f);
 	m_pCurrentMenu.push_back(pText);
 
-	pText = new TextLabel("Fan : Off", "Assets/Fonts/waltographUI.ttf");
+	pText = new TextLabel("Fan : On", "Assets/Fonts/waltographUI.ttf");
 	pText->setColor(glm::vec3(1.0f, 1.0f, 0.0f));
 	pText->setPosition(glm::vec3(0.0f, 300.0f, 0.0f));
 	pText->setScale(0.5f);
 	m_pCurrentMenu.push_back(pText);
+
+	pText = new TextLabel("Reset Sim", "Assets/Fonts/waltographUI.ttf");
+	pText->setColor(glm::vec3(1.0f, 1.0f, 0.0f));
+	pText->setPosition(glm::vec3(0.0f, 400.0f, 0.0f));
+	pText->setScale(0.5f);
+	m_pCurrentMenu.push_back(pText);
+
+	pText = new TextLabel("Close Curtain (HOLD)", "Assets/Fonts/waltographUI.ttf");
+	pText->setColor(glm::vec3(1.0f, 1.0f, 0.0f));
+	pText->setPosition(glm::vec3(0.0f, 450, 0.0f));
+	pText->setScale(0.5f);
+	m_pCurrentMenu.push_back(pText);
+
+	pText = new TextLabel("Open Curtain (HOLD)", "Assets/Fonts/waltographUI.ttf");
+	pText->setColor(glm::vec3(1.0f, 1.0f, 0.0f));
+	pText->setPosition(glm::vec3(0.0f, 500, 0.0f));
+	pText->setScale(0.5f);
+	m_pCurrentMenu.push_back(pText);
+
+	pText = new TextLabel("Cloth Size : Use IJKL", "Assets/Fonts/waltographUI.ttf");
+	pText->setColor(glm::vec3(1.0f, 1.0f, 0.0f));
+	pText->setPosition(glm::vec3(0.0f, 550, 0.0f));
+	pText->setScale(0.5f);
+	m_pCurrentMenu.push_back(pText);
+
+	pText = new TextLabel("Move WindBox : Use TFGH", "Assets/Fonts/waltographUI.ttf");
+	pText->setColor(glm::vec3(1.0f, 1.0f, 0.0f));
+	pText->setPosition(glm::vec3(0.0f, 600, 0.0f));
+	pText->setScale(0.5f);
+	m_pCurrentMenu.push_back(pText);
+
 
 	m_pCurrentMenu.push_back(m_tHooks);
 
@@ -619,12 +654,24 @@ void Update()
 				btVector3 a = _nodes[i].m_x;
 				btVector3 b = _nodes[19].m_x;
 
-				distance = (a - b).length() * MoveHinge;
+				distance = (a - b).length() * MoveHinge * 10;
 				if (i == 0)
 				{
 					cout << distance << endl;
 				}
 				_nodes[i].m_v = btVector3(distance, 0, 0) * fDeltaTime;
+			}
+		}
+	}
+	else
+	{
+		btSoftBody::tNodeArray& _nodes(cloth->m_nodes);
+		
+		for (int i = 0; i < numX; i++)
+		{
+			if ((cloth->getMass(i)) <= 0.09f)
+			{
+				_nodes[i].m_v = btVector3(0, 0, 0);
 			}
 		}
 	}
@@ -637,12 +684,13 @@ void Update()
 	g_PreviousTicks = g_CurrentTicks;
 
 	g_btFanPosition = btVector3(g_fanBox.m_Position.x, g_fanBox.m_Position.y, g_fanBox.m_Position.z);
-	//ApplyFanForces();
+
+	if(FanOn)
+		ApplyFanForces();
 	
 	glUseProgram(0);
 	g_Camera.Translate(g_Movement * 10.0f * fDeltaTime);
 	g_WindowRunning = true;
-	Sleep(10);
 	glutPostRedisplay();
 }
 
@@ -650,7 +698,7 @@ void ApplyFanForces()
 {
 	btSoftBody::tNodeArray&   _nodes(cloth->m_nodes);
 
-	for (int j = 0; j< _nodes.size() / 2; ++j)
+	for (int j = 0; j< _nodes.size(); ++j)
 	{
 		// Reset force
 	//	_nodes[j].m_f = btVector3(0, 0, 0);
@@ -661,14 +709,22 @@ void ApplyFanForces()
 		glm::vec3 NodeToFan = glm::vec3(nodeToFan.m_floats[0], nodeToFan.m_floats[1], nodeToFan.m_floats[2]);
 		glm::vec3 nodeNormal = glm::vec3(_nodes[j].m_n.m_floats[0], _nodes[j].m_n.m_floats[1], _nodes[j].m_n.m_floats[2]);
 
+		float scalar = glm::length(NodeToFan);
+
 		float dotProduct = glm::dot(NodeToFan, nodeNormal);
 
 		if (dotProduct == 0)
 			dotProduct = 0.0001f;
 
 		// Apply force based on dot product
-		_nodes[j].m_f = btVector3(1, 1, 1) * 0.2 / dotProduct;
+		_nodes[j].m_f = nodeToFan / (scalar * 3);
 	//	_nodes[j].m_f = -nodeToFan * (0.01f / dotProduct);
+	//	_nodes[j].m_f = btVector3(0, 0, -nodeToFan.m_floats[2]) * 0.1 / dotProduct;
+	//	_nodes[j].m_f = btVector3(1,1,1) * 0.1 / dotProduct;
+
+	//	cloth->m_windVelocity;
+	//	cloth->setWindVelocity(g_btFanPosition * 1000);
+	//	cloth->m_windVelocity.setZ(scalar);
 	}
 }
 
@@ -1026,8 +1082,48 @@ void MouseButton(int button, int state, int x, int y)
 							}
 						}
 
+						if (text.length() >= 3)
+						{
+							std::string sub = text.substr(0, 3);
+							if (sub == "Fan")
+							{
+								FanOn = !FanOn;
+								if (FanOn)
+									itr->setText("Fan : On");
+								else
+									itr->setText("Fan : Off");
+
+							}
+						}
+
+						if (text.length() >= 5)
+						{
+							std::string sub = text.substr(0, 5);
+							if (sub == "Reset")
+							{
+								ResetCloth();
+							}
+						}
+
+						if (text.length() >= 4)
+						{
+							std::string sub = text.substr(0, 4);
+							if (sub == "Open")
+							{
+								MoveHinge = -1;
+							}
+						}
+
+						if (text.length() >= 5)
+						{
+							std::string sub = text.substr(0, 5);
+							if (sub == "Close")
+							{
+								MoveHinge = 1;
+							}
+						}
+
 						itr->setHighlighted(false);
-						break;
 					}
 				}
 			}
@@ -1110,6 +1206,9 @@ void MouseButton(int button, int state, int x, int y)
 
 		if (state == GLUT_UP)
 		{
+			if (MoveHinge != 0)
+				MoveHinge = 0;
+
 			if ((!m_drag) && m_cutting && (m_results.fraction<1.f))
 			{
 
